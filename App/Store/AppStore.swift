@@ -18,8 +18,8 @@ final class AppStore {
     /// Where changes are saved: `nil` until her file has been read, in read-only mode and in the demo.
     @ObservationIgnored private var persistence: Persistence?
     /// Her file hasn't been read yet: it exists but can't be read right now (e.g. the phone hasn't
-    /// been unlocked since a restart), or there is none and the app hasn't been active yet to decide
-    /// what that means.
+    /// been unlocked since a restart), or it is missing while daily copies exist, which can be read
+    /// only once the app is in use.
     @ObservationIgnored private var unreadPersistence: Persistence?
     /// Why changes can't be made right now, when they can't.
     @ObservationIgnored private var readOnlyReason: String?
@@ -97,9 +97,10 @@ final class AppStore {
         }
 
         guard let raw else {
-            // No file: the very first launch, or the file is gone. Before the phone has been unlocked
-            // even the daily copies can't be read, so this is decided only once the app is in use.
-            guard isActive else { return }
+            // No file. Without daily copies this is simply the first launch. With copies, the file is
+            // gone – and before the phone has been unlocked even the copies can't be read, so that
+            // case is decided only once the app is in use.
+            if candidate.hasBackupFiles && !isActive { return }
             unreadPersistence = nil
             persistence = candidate
             if restoreNewestBackup(from: candidate, because: "nie znalazłam pliku z Twoimi danymi") {
@@ -155,7 +156,13 @@ final class AppStore {
     /// Changes are refused while her file hasn't been read and in read-only mode.
     private func canEdit() -> Bool {
         if unreadPersistence != nil {
-            problem = "jeszcze nie wczytałam Twoich danych, więc niczego teraz nie zmienię. Zamknij aplikację i otwórz ją jeszcze raz"
+            // She is using the app, so the phone is unlocked: try reading her file once more.
+            openSavedData(isActive: true)
+        }
+        if unreadPersistence != nil {
+            if problem == nil {
+                problem = "jeszcze nie wczytałam Twoich danych, więc niczego teraz nie zmienię. Zamknij aplikację i otwórz ją jeszcze raz"
+            }
             return false
         }
         if let readOnlyReason {

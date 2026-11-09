@@ -101,7 +101,9 @@ ani danych, jeśli to ten sam Apple ID), a potem w AltStore Refresh All.
 - Projekt Xcode na Macu: `brew install xcodegen && xcodegen generate`.
 - Argumenty uruchomienia:
   - `-demoData` – fikcyjna historia, nic nie zapisuje;
-  - `-startTab calendar` – otwiera wybraną zakładkę (`today`, `calendar`, `food`, `movement`, `me`).
+  - `-startTab calendar` – otwiera wybraną zakładkę (`today`, `calendar`, `food`, `movement`, `me`);
+  - `-stillBackground` – nieruchome tło (testy UI: animowane tło nie pozwala aplikacji „odpocząć”,
+    przez co automatyczne dotknięcia są wolne i niestabilne).
 - Zapis danych: plik `Application Support/AboutHer/about-her.json`, kopie w `Kopie/`.
   Dopóki plik nie zostanie odczytany, aplikacja niczego nie zapisuje (np. zaraz po restarcie
   telefonu, przed pierwszym odblokowaniem). Uszkodzony plik jest odkładany na bok, a dane

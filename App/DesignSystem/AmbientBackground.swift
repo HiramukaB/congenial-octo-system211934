@@ -15,9 +15,13 @@ struct AmbientBackground: View {
     var tint: Color?
     @Environment(\.accessibilityReduceMotion) var reduceMotion
 
+    /// UI tests pass "-stillBackground": a background that never stops moving keeps the app from
+    /// ever being idle, which makes automated taps slow and flaky.
+    private static let isStill = ProcessInfo.processInfo.arguments.contains("-stillBackground")
+
     var body: some View {
         let colors = meshColors
-        TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: reduceMotion || Self.isStill)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
             ZStack {
                 MeshGradient(width: 3, height: 3, points: AmbientBackground.meshPoints(at: time), colors: colors)
