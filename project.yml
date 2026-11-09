@@ -1,0 +1,67 @@
+# XcodeGen project definition. Generate the Xcode project with:  xcodegen generate
+name: AboutHer
+
+options:
+  bundleIdPrefix: pl.abouther
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: pl
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: YES
+    TARGETED_DEVICE_FAMILY: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_EMIT_LOC_STRINGS: NO
+
+packages:
+  AboutHerCore:
+    path: Packages/AboutHerCore
+
+targets:
+  AboutHer:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    dependencies:
+      - package: AboutHerCore
+    settings:
+      base:
+        PRODUCT_NAME: AboutHer
+        PRODUCT_BUNDLE_IDENTIFIER: pl.abouther.app
+        INFOPLIST_KEY_CFBundleDisplayName: "about her"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+
+  AboutHerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: AboutHer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pl.abouther.app.uitests
+        TEST_TARGET_NAME: AboutHer
+
+schemes:
+  AboutHer:
+    build:
+      targets:
+        AboutHer: all
+    test:
+      config: Debug
+      targets:
+        - AboutHerUITests

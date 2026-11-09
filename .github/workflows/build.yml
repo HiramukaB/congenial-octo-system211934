@@ -1,0 +1,146 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+
+# core, ipa i screenshots idą równolegle, więc jeden przebieg pokazuje wszystkie błędy naraz.
+# Wydanie „najnowsza” powstaje tylko wtedy, gdy przeszły testy logiki i zbudowała się IPA.
+jobs:
+  core:
+    name: Logika – testy na Linuksie
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wersja Swifta
+        run: swift --version
+
+      - name: Testy pakietu AboutHerCore
+        working-directory: Packages/AboutHerCore
+        run: swift test
+
+  ipa:
+    name: Aplikacja – AboutHer.ipa
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Najnowszy stabilny Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Narzędzia (XcodeGen, xcbeautify)
+        run: brew install xcodegen xcbeautify
+
+      - name: Wygeneruj projekt Xcode
+        run: xcodegen generate
+
+      - name: Zbuduj aplikację na iPhone'a (bez podpisu – podpisze ją AltStore)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project AboutHer.xcodeproj \
+            -scheme AboutHer \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/device \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcbeautify --renderer github-actions
+
+      - name: Spakuj AboutHer.ipa
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/device/Build/Products/Release-iphoneos/AboutHer.app dist/Payload/
+          cd dist
+          zip -qry AboutHer.ipa Payload
+          rm -rf Payload
+          ls -lh AboutHer.ipa
+
+      - name: Zapisz IPA jako artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: AboutHer-ipa
+          path: dist/AboutHer.ipa
+          if-no-files-found: error
+
+  screenshots:
+    name: Zrzuty ekranu w symulatorze
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Najnowszy stabilny Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Narzędzia (XcodeGen, xcbeautify)
+        run: brew install xcodegen xcbeautify
+
+      - name: Wygeneruj projekt Xcode
+        run: xcodegen generate
+
+      - name: Uruchom każdą zakładkę i zrób zrzut
+        run: |
+          set -o pipefail
+          DEVICE_ID=$(xcrun simctl list devices available --json | python3 .github/scripts/pick_simulator.py)
+          xcodebuild test \
+            -project AboutHer.xcodeproj \
+            -scheme AboutHer \
+            -destination "id=$DEVICE_ID" \
+            -derivedDataPath build/simulator \
+            | xcbeautify --renderer github-actions
+
+      - name: Zapisz zrzuty ekranu
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: ~/screenshots
+          if-no-files-found: warn
+
+  release:
+    name: Wydanie „najnowsza”
+    needs: [core, ipa]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AboutHer-ipa
+          path: dist
+
+      - name: Opublikuj AboutHer.ipa
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete najnowsza --yes --cleanup-tag || true
+          gh release create najnowsza dist/AboutHer.ipa \
+            --target "$GITHUB_SHA" \
+            --title "about her – najnowsza wersja" \
+            --notes "Zbudowano z commita ${GITHUB_SHA::7}. Pobierz AboutHer.ipa na iPhonie i otwórz w AltStore." \
+            --prerelease

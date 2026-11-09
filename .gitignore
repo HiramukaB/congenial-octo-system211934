@@ -1,0 +1,21 @@
+# Xcode (the project is generated from project.yml by XcodeGen)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+dist/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Personal data – never commit: period dates, weight, the original conversation, backups
+about-her.html
+transkrypt.txt
+about-her-kopia-*.json
+about-her-*.json
