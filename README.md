@@ -14,7 +14,7 @@ Cykl, jedzenie, ruch, sen i wnętrze w jednym miejscu, w zgodzie z rytmem cyklu 
 | 5 zakładek: dziś · kalendarz · jedzenie · ruch · ja | szkielet |
 | Cykl: kalendarz okresu, fazy z poziomem pewności, prognoza, spóźnienia, plamienia | gotowe |
 | Zapis danych (plik JSON) z dziennymi kopiami i odtwarzaniem z kopii | gotowe |
-| Import dni okresu z kopii wersji HTML | gotowe |
+| Ikona aplikacji (`Tools/make_app_icon.py`) | gotowe |
 | Jedzenie, ruch, wnętrze | w budowie |
 
 ## Struktura

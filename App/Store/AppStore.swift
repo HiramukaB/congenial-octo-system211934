@@ -57,18 +57,6 @@ final class AppStore {
         markChanged()
     }
 
-    /// Adds period days from an old backup and returns how many of them were new,
-    /// or `nil` when nothing can be changed right now. Future days are skipped.
-    func importPeriodDays(_ days: Set<LocalDate>) -> Int? {
-        guard canEdit() else { return nil }
-        let pastDays = days.filter { $0 <= today }
-        let added = pastDays.subtracting(data.periodDays).count
-        guard added > 0 else { return 0 }
-        data.periodDays.formUnion(pastDays)
-        markChanged()
-        return added
-    }
-
     /// Called whenever the app becomes active and at midnight.
     func refreshToday() {
         openSavedData(isActive: true)

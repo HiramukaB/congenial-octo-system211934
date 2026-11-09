@@ -36,6 +36,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         PRODUCT_NAME: AboutHer
         PRODUCT_BUNDLE_IDENTIFIER: pl.abouther.app
+        # App/Assets.xcassets/AppIcon – drawn by Tools/make_app_icon.py
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: "about her"
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES

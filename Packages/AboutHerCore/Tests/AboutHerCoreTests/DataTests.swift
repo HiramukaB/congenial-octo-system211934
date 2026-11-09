@@ -39,21 +39,6 @@ struct DataTests {
         #expect(appData.periodDays.isEmpty)
     }
 
-    @Test func importsPeriodDaysFromAWebVersionBackup() throws {
-        let json = """
-        {"data":{"periodDays":{"2025-03-01":true,"2025-03-02":true,"2025-03-03":false},"symptoms":{}},\
-        "photos":[],"exportedAt":"2025-04-01T10:00:00.000Z"}
-        """
-        let days = try LegacyImport.periodDays(fromHTMLExport: Data(json.utf8))
-        #expect(days == [LocalDate(year: 2025, month: 3, day: 1), LocalDate(year: 2025, month: 3, day: 2)])
-    }
-
-    @Test func rejectsFilesThatAreNotABackup() {
-        #expect(throws: LegacyImport.ImportError.self) {
-            try LegacyImport.periodDays(fromHTMLExport: Data(#"{"hello":1}"#.utf8))
-        }
-    }
-
     @Test func polishWording() {
         let saturday = LocalDate(year: 2026, month: 11, day: 7)
         #expect(PolishDate.short(LocalDate(year: 2026, month: 9, day: 5)) == "5 wrz")
