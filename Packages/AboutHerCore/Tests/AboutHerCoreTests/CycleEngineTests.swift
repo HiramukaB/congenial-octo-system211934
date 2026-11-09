@@ -224,6 +224,11 @@ struct CycleEngineTests {
         #expect(early.status(on: dayOne).cycleDay == 1)
     }
 
+    @Test func withFewerThanTwoWholePeriodsTheMarkCloserToTheExpectedDateStays() {
+        let engine = CycleEngine(periodDays: marks(0...0, 28...28, 40...44, from: first), today: first.adding(days: 45))
+        #expect(engine.periods.map(\.start) == [first, first.adding(days: 28)])
+    }
+
     @Test func anOnTimePeriodMarkedOnlyOnItsFirstDayIsKept() {
         let today = first.adding(days: 95)
         let engine = CycleEngine(periodDays: marks(0...4, 28...32, 56...60, 84...84, 90...91, from: first), today: today)

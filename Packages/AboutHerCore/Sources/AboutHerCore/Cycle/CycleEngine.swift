@@ -30,7 +30,9 @@ public enum CycleMath {
     ///
     /// - Bleeding that begins less than 15 days after a cycle start can't start another cycle.
     ///   Of the two, the one that looks more like the start of the period stays: a whole period
-    ///   rather than a one- or two-day mark, otherwise the one closer to the expected date.
+    ///   rather than a one- or two-day mark once she has marked at least two whole periods (or
+    ///   while there is no expected date yet); otherwise the one closer to the expected date,
+    ///   and on a tie or without an expected date the earlier one.
     /// - Once she has marked at least two whole periods, a one- or two-day mark that comes too
     ///   early for a new cycle is read as spotting. While it may still be the first day of a
     ///   period (marked today or yesterday) it counts as a start, so the app reacts right away.

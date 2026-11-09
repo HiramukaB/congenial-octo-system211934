@@ -17,7 +17,9 @@ final class AppStore {
 
     /// Where changes are saved: `nil` until her file has been read, in read-only mode and in the demo.
     @ObservationIgnored private var persistence: Persistence?
-    /// Her file exists but couldn't be read yet (e.g. the phone hasn't been unlocked since a restart).
+    /// Her file hasn't been read yet: it exists but can't be read right now (e.g. the phone hasn't
+    /// been unlocked since a restart), or there is none and the app hasn't been active yet to decide
+    /// what that means.
     @ObservationIgnored private var unreadPersistence: Persistence?
     /// Why changes can't be made right now, when they can't.
     @ObservationIgnored private var readOnlyReason: String?
@@ -142,8 +144,11 @@ final class AppStore {
         guard let backup = candidate.newestReadableBackup() else { return false }
         data = backup.data
         hasUnsavedChanges = true
-        write()
-        problem = "\(reason), więc wczytałam kopię z \(PolishDate.dayMonth(backup.day)). Sprawdź ostatnie dni w kalendarzu\(footnote)"
+        let saved = write()
+        let restored = "\(reason), więc wczytałam kopię z \(PolishDate.dayMonth(backup.day)). Sprawdź ostatnie dni w kalendarzu\(footnote)"
+        problem = saved
+            ? restored
+            : restored + ". Nie udało mi się jeszcze zapisać wczytanej kopii – spróbuję znowu przy kolejnej zmianie albo gdy wyjdziesz z aplikacji"
         return true
     }
 
@@ -182,13 +187,17 @@ final class AppStore {
         }
     }
 
-    private func write() {
-        guard hasUnsavedChanges, let persistence else { return }
+    /// Saves pending changes. Returns `false` only when saving failed.
+    @discardableResult
+    private func write() -> Bool {
+        guard hasUnsavedChanges, let persistence else { return true }
         do {
             try persistence.save(data)
             hasUnsavedChanges = false
+            return true
         } catch {
             problem = "nie udało mi się zapisać ostatnich zmian. Spróbuję jeszcze raz przy kolejnej zmianie albo gdy wyjdziesz z aplikacji. Szczegóły: \(error.localizedDescription)"
+            return false
         }
     }
 }
