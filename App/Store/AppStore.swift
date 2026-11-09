@@ -93,18 +93,22 @@ final class AppStore {
             }
             return
         }
-        unreadPersistence = nil
 
         guard let raw else {
-            // The very first launch – or the main file is gone, and then the newest copy is the best start.
-            if let backup = candidate.newestReadableBackup() {
-                data = backup.data
-                hasUnsavedChanges = true
-                problem = "nie znalazłam pliku z Twoimi danymi, więc wczytałam kopię z \(PolishDate.dayMonth(backup.day)). Sprawdź ostatnie dni w kalendarzu"
-            }
+            // No file: the very first launch, or the file is gone. Before the phone has been unlocked
+            // even the daily copies can't be read, so this is decided only once the app is in use.
+            guard isActive else { return }
+            unreadPersistence = nil
             persistence = candidate
+            if restoreNewestBackup(from: candidate, because: "nie znalazłam pliku z Twoimi danymi") {
+                return
+            }
+            if candidate.hasBackupFiles {
+                problem = "nie znalazłam pliku z Twoimi danymi, a zapisanych kopii nie udało mi się odczytać, więc zaczynam od pustego kalendarza"
+            }
             return
         }
+        unreadPersistence = nil
 
         if AppDataCoding.isFromNewerVersion(raw) {
             data = (try? AppDataCoding.decode(raw)) ?? AppData()
@@ -123,15 +127,24 @@ final class AppStore {
                 problem = "nie udało mi się odczytać zapisanych danych ani odłożyć ich na bok, więc niczego nie zapisuję. Zamknij aplikację i otwórz ją jeszcze raz"
                 return
             }
-            if let backup = candidate.newestReadableBackup() {
-                data = backup.data
-                hasUnsavedChanges = true
-                problem = "nie udało mi się odczytać zapisanych danych, więc wczytałam kopię z \(PolishDate.dayMonth(backup.day)). Sprawdź ostatnie dni w kalendarzu. Uszkodzony plik zachowałam"
-            } else {
-                problem = "nie udało mi się odczytać zapisanych danych, a nie mam żadnej kopii, więc zaczynam od pustego kalendarza. Uszkodzony plik zachowałam, da się go jeszcze odzyskać"
-            }
             persistence = candidate
+            if !restoreNewestBackup(from: candidate,
+                                    because: "nie udało mi się odczytać zapisanych danych",
+                                    footnote: ". Uszkodzony plik zachowałam") {
+                problem = "nie udało mi się odczytać zapisanych danych, a nie mam żadnej dobrej kopii, więc zaczynam od pustego kalendarza. Uszkodzony plik zachowałam, da się go jeszcze odzyskać"
+            }
         }
+    }
+
+    /// Loads the newest readable daily copy and saves it as her file right away.
+    /// Returns `false` when there is no copy to restore.
+    private func restoreNewestBackup(from candidate: Persistence, because reason: String, footnote: String = "") -> Bool {
+        guard let backup = candidate.newestReadableBackup() else { return false }
+        data = backup.data
+        hasUnsavedChanges = true
+        write()
+        problem = "\(reason), więc wczytałam kopię z \(PolishDate.dayMonth(backup.day)). Sprawdź ostatnie dni w kalendarzu\(footnote)"
+        return true
     }
 
     /// Changes are refused while her file hasn't been read and in read-only mode.

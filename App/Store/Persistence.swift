@@ -49,6 +49,12 @@ struct Persistence {
         }
     }
 
+    /// Whether there are any daily copies at all, readable or not.
+    var hasBackupFiles: Bool {
+        let files = (try? FileManager.default.contentsOfDirectory(at: backupDirectory, includingPropertiesForKeys: nil)) ?? []
+        return files.contains { $0.pathExtension == "json" }
+    }
+
     /// The newest daily copy that can still be read, with the day it was made.
     func newestReadableBackup() -> (data: AppData, day: LocalDate)? {
         let files = (try? FileManager.default.contentsOfDirectory(at: backupDirectory, includingPropertiesForKeys: nil)) ?? []

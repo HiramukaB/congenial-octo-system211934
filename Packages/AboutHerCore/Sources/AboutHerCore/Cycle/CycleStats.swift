@@ -17,8 +17,11 @@ public struct CycleStats: Sendable, Equatable {
     public let typicalPeriodLength: Int
     public let shortestCycle: Int?
     public let longestCycle: Int?
+    /// How many of her finished periods `typicalPeriodLength` is based on (0: the textbook 5 days).
+    public let periodLengthSampleCount: Int
 
-    public init(periods: [PeriodRange]) {
+    /// `today` keeps a period that may still be going on out of her usual period length.
+    public init(periods: [PeriodRange], today: LocalDate? = nil) {
         var lengths: [Int] = []
         for (previous, next) in zip(periods, periods.dropFirst()) {
             let length = previous.start.days(to: next.start)
@@ -27,13 +30,19 @@ public struct CycleStats: Sendable, Equatable {
             }
         }
         let recent = Array(lengths.suffix(CycleStats.recentWindow))
-        let recentPeriods = periods.suffix(CycleStats.recentWindow)
+        // A period that may still be in progress, and a mark of a single day, say nothing about
+        // how long her periods usually last.
+        let finished = periods.filter { period in
+            today.map { period.start.days(to: $0) >= 12 } ?? true
+        }
+        let recentPeriods = finished.suffix(CycleStats.recentWindow)
             .map(\.length)
-            .filter { (1...12).contains($0) }
+            .filter { (2...12).contains($0) }
 
         cycleLengths = lengths
         typicalCycleLength = CycleStats.median(recent) ?? 28
         typicalPeriodLength = CycleStats.median(recentPeriods) ?? 5
+        periodLengthSampleCount = recentPeriods.count
         shortestCycle = recent.min()
         longestCycle = recent.max()
     }

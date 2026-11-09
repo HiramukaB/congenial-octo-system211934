@@ -1,6 +1,11 @@
 import Testing
 @testable import AboutHerCore
 
+/// Marked days given as day offsets from `start`, e.g. `marks(0...4, 28...28, from: first)`.
+func marks(_ offsets: ClosedRange<Int>..., from start: LocalDate) -> Set<LocalDate> {
+    Set(offsets.flatMap { range in range.map { start.adding(days: $0) } })
+}
+
 /// A fictional history: a period of `bleed` days at the start of every cycle,
 /// plus one more period after the last cycle.
 func history(from first: LocalDate, cycles: [Int], bleed: Int = 6) -> (days: Set<LocalDate>, lastStart: LocalDate) {
@@ -189,6 +194,63 @@ struct CycleEngineTests {
         #expect(CycleEngine(periodDays: days, today: nextDay).status(on: nextDay).cycleDay == 2)
         let twoDaysLater = marked.adding(days: 2)
         #expect(CycleEngine(periodDays: days, today: twoDaysLater).status(on: twoDaysLater).cycleDay == 19)
+        // While it is only a possible start, her statistics and the days before it stay as they were.
+        let provisional = CycleEngine(periodDays: days, today: marked)
+        #expect(provisional.stats.cycleLengths == regular)
+        #expect(provisional.periods.last?.start == h.lastStart)
+        #expect(provisional.phase(on: h.lastStart.adding(days: 8), today: marked)?.phase == .follicular)
+    }
+
+    @Test func aPeriodMarkedOnlyOnItsFirstDayStillCounts() {
+        let engine = CycleEngine(periodDays: marks(0...4, 28...28, 56...60, from: first), today: first.adding(days: 70))
+        #expect(engine.stats.cycleLengths == [28, 28])
+        #expect(engine.nextPeriod(after: engine.periods[engine.periods.count - 1]).expected == first.adding(days: 84))
+        // Recurring one-day spotting in longer cycles stays spotting.
+        let spotting = CycleEngine(periodDays: marks(0...4, 19...19, 35...39, 54...54, 70...74, from: first),
+                                   today: first.adding(days: 80))
+        #expect(spotting.stats.cycleLengths == [35, 35])
+    }
+
+    @Test func twoDaysOfSpottingDoNotSwallowThePeriod() {
+        let h = history(from: first, cycles: regular, bleed: 5)
+        let spotting = marks(20...21, from: h.lastStart)
+        let today = h.lastStart.adding(days: 30)
+        let engine = CycleEngine(periodDays: h.days.union(spotting).union(marks(28...32, from: h.lastStart)), today: today)
+        #expect(engine.periods.last?.start == h.lastStart.adding(days: 28))
+        #expect(engine.status(on: today).cycleDay == 3)
+        // On the first day of the period, with only that day marked so far.
+        let dayOne = h.lastStart.adding(days: 28)
+        let early = CycleEngine(periodDays: h.days.union(spotting).union([dayOne]), today: dayOne)
+        #expect(early.status(on: dayOne).cycleDay == 1)
+    }
+
+    @Test func anOnTimePeriodMarkedOnlyOnItsFirstDayIsKept() {
+        let today = first.adding(days: 95)
+        let engine = CycleEngine(periodDays: marks(0...4, 28...32, 56...60, 84...84, 90...91, from: first), today: today)
+        #expect(engine.stats.cycleLengths == [28, 28, 28])
+        #expect(engine.status(on: today).cycleDay == 12)
+    }
+
+    @Test func thePeriodInProgressDoesNotShortenHerUsualLength() {
+        // The first period ever, its second day not marked yet.
+        let secondDay = first.adding(days: 1)
+        let fresh = CycleEngine(periodDays: [first], today: secondDay)
+        #expect(fresh.phase(on: secondDay, today: secondDay)?.phase == .menstrual)
+        #expect(fresh.phase(on: secondDay, today: secondDay)?.isLoggedPeriod == false)
+
+        // One finished five-day period; the second one marked on its first day only.
+        let today = first.adding(days: 31)
+        let second = CycleEngine(periodDays: marks(0...4, 28...28, from: first), today: today)
+        #expect(second.stats.typicalPeriodLength == 5)
+        #expect(second.stats.periodLengthSampleCount == 1)
+        #expect(second.phase(on: today, today: today)?.phase == .menstrual)
+
+        // Only first days marked: the cycles are still known, the period length is the textbook default.
+        let later = first.adding(days: 57)
+        let firstDaysOnly = CycleEngine(periodDays: marks(0...0, 28...28, 56...56, from: first), today: later)
+        #expect(firstDaysOnly.stats.cycleLengths == [28, 28])
+        #expect(firstDaysOnly.stats.periodLengthSampleCount == 0)
+        #expect(firstDaysOnly.phase(on: later, today: later)?.phase == .menstrual)
     }
 
     @Test func spottingJustBeforeAPeriodDoesNotMoveTheCycleStart() {
@@ -209,6 +271,8 @@ struct CycleEngineTests {
         #expect(info?.phase == .menstrual)
         #expect(info?.isLoggedPeriod == false)
         #expect(info?.confidence == .medium)
+        // Yesterday, unmarked too, reads the same as today.
+        #expect(engine.phase(on: h.lastStart.adding(days: 1), today: today)?.phase == .menstrual)
         #expect(engine.phase(on: h.lastStart.adding(days: 4), today: today)?.phase == .menstrual)
         #expect(engine.phase(on: h.lastStart.adding(days: 6), today: today)?.phase == .follicular)
         // Days she has already lived through without marking them were not period days.

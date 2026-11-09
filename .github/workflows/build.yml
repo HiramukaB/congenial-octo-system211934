@@ -113,6 +113,8 @@ jobs:
             -scheme AboutHer \
             -destination "id=$DEVICE_ID" \
             -derivedDataPath build/simulator \
+            MARKETING_VERSION="0.1.${{ github.run_number }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             | xcbeautify --renderer github-actions
 
       - name: Zapisz zrzuty ekranu

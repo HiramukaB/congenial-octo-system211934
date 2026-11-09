@@ -82,7 +82,9 @@ extension PhaseInfo {
     func confidenceNote(stats: CycleStats) -> String? {
         guard !isLoggedPeriod else { return nil }
         if phase == .menstrual {
-            return "Twój okres trwa zwykle \(PolishPlural.days(stats.typicalPeriodLength)), więc zakładam, że jeszcze trwa"
+            return stats.periodLengthSampleCount > 0
+                ? "Twój okres trwa zwykle \(PolishPlural.days(stats.typicalPeriodLength)), więc zakładam, że jeszcze trwa"
+                : "okres trwa zwykle około \(PolishPlural.days(stats.typicalPeriodLength)), więc zakładam, że jeszcze trwa"
         }
         switch stats.cycleLengths.count {
         case 0:

@@ -18,6 +18,12 @@ struct CalendarView: View {
             CycleStatsCard(stats: engine.stats, periodCount: engine.periods.count)
             PeriodHistoryCard(periods: engine.periods)
         }
+        .onChange(of: store.today) { oldDay, newDay in
+            // A new month began while the app stayed open: follow it, unless she is looking at another month.
+            if month == oldDay.firstOfMonth {
+                month = newDay.firstOfMonth
+            }
+        }
     }
 }
 

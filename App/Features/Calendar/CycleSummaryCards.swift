@@ -21,9 +21,12 @@ struct CycleStatsCard: View {
                         StatTile(label: "typowy cykl",
                                  value: PolishPlural.days(stats.typicalCycleLength),
                                  detail: cycleRange)
-                        StatTile(label: "typowy okres",
-                                 value: PolishPlural.days(stats.typicalPeriodLength),
-                                 detail: nil)
+                        // Shown once at least one whole period is known – not the textbook five days.
+                        if stats.periodLengthSampleCount > 0 {
+                            StatTile(label: "typowy okres",
+                                     value: PolishPlural.days(stats.typicalPeriodLength),
+                                     detail: nil)
+                        }
                     }
                     if stats.isIrregular || (stats.longestCycle ?? 0) > 38 {
                         Text(polish: rhythmNote)

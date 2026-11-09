@@ -28,18 +28,15 @@ public enum CycleMath {
 
     /// The bleeding stretches that start a new cycle, oldest first.
     ///
-    /// - Bleeding that begins less than 15 days after a cycle start belongs to that cycle
-    ///   (the rest of a split period, or spotting). When a single marked day is followed by
-    ///   real bleeding within those days, the cycle starts with the bleeding instead.
-    /// - Once she has marked at least two whole periods, a single marked day that comes too
-    ///   early for a new cycle is read as spotting. While it may still be day one of a period
-    ///   (marked today or yesterday) it does count as a start, so the app reacts right away.
+    /// - Bleeding that begins less than 15 days after a cycle start can't start another cycle.
+    ///   Of the two, the one that looks more like the start of the period stays: a whole period
+    ///   rather than a one- or two-day mark, otherwise the one closer to the expected date.
+    /// - Once she has marked at least two whole periods, a one- or two-day mark that comes too
+    ///   early for a new cycle is read as spotting. While it may still be the first day of a
+    ///   period (marked today or yesterday) it counts as a start, so the app reacts right away.
     public static func cycleStarts(from stretches: [PeriodRange], today: LocalDate? = nil) -> [PeriodRange] {
         let minimumCycle = CycleStats.plausibleCycleRange.lowerBound
-        let wholePeriods = stretches.filter { $0.length > 1 }
-        let marksWholePeriods = wholePeriods.count >= 2
-        let shortestCycle = CycleStats(periods: wholePeriods).shortestCycle ?? 21
-        let earliestNewCycle = Swift.max(minimumCycle, shortestCycle - 3)
+        let marksWholePeriods = stretches.filter(\.isWholePeriod).count >= 2
 
         var starts: [PeriodRange] = []
         for stretch in stretches {
@@ -47,21 +44,58 @@ public enum CycleMath {
                 starts.append(stretch)
                 continue
             }
+            let recent = recentCycleLengths(of: starts)
             let gap = previous.start.days(to: stretch.start)
             if gap < minimumCycle {
-                if previous.length == 1 && stretch.length > 1 {
+                let expected = starts.count >= 2
+                    ? starts[starts.count - 2].start.adding(days: CycleStats.median(recent) ?? 28)
+                    : nil
+                if prefers(stretch, over: previous, expected: expected, marksWholePeriods: marksWholePeriods) {
                     starts[starts.count - 1] = stretch
                 }
                 continue
             }
+            let earliestNewCycle = Swift.max(minimumCycle, (recent.min() ?? 24) - 3)
             let mayStillBleed = today.map { stretch.end.days(to: $0) <= 1 } ?? false
-            if marksWholePeriods && stretch.length == 1 && gap < earliestNewCycle && !mayStillBleed {
+            if marksWholePeriods && !stretch.isWholePeriod && gap < earliestNewCycle && !mayStillBleed {
                 continue
             }
             starts.append(stretch)
         }
         return starts
     }
+
+    /// Her recent cycle lengths as far as the starts found so far tell. Cycles between two whole
+    /// periods come first: a one- or two-day mark at either end may have been spotting.
+    private static func recentCycleLengths(of starts: [PeriodRange]) -> [Int] {
+        let pairs = Array(zip(starts, starts.dropFirst()))
+        let plausible = { (pair: (PeriodRange, PeriodRange)) -> Int? in
+            let length = pair.0.start.days(to: pair.1.start)
+            return CycleStats.plausibleCycleRange.contains(length) ? length : nil
+        }
+        let betweenWholePeriods = pairs
+            .filter { $0.0.isWholePeriod && $0.1.isWholePeriod }
+            .compactMap(plausible)
+        if !betweenWholePeriods.isEmpty {
+            return Array(betweenWholePeriods.suffix(CycleStats.recentWindow))
+        }
+        return Array(pairs.compactMap(plausible).suffix(CycleStats.recentWindow))
+    }
+
+    /// Whether `candidate` looks more like the start of the period than `current`.
+    private static func prefers(_ candidate: PeriodRange, over current: PeriodRange,
+                                expected: LocalDate?, marksWholePeriods: Bool) -> Bool {
+        if candidate.isWholePeriod != current.isWholePeriod && (marksWholePeriods || expected == nil) {
+            return candidate.isWholePeriod
+        }
+        guard let expected else { return false }
+        return abs(expected.days(to: candidate.start)) < abs(expected.days(to: current.start))
+    }
+}
+
+extension PeriodRange {
+    /// Three or more days in a row: a period she marked as a whole, not only its first day or spotting.
+    public var isWholePeriod: Bool { length >= 3 }
 }
 
 /// Works out the cycle day, the phase and the next period from the days she marked.
@@ -80,21 +114,27 @@ public struct CycleEngine: Sendable {
     public let stats: CycleStats
     /// Assumed days from ovulation to the next period (typically 12–14).
     public let lutealLength: Int
+    /// `periods`, plus possibly a short mark from today or yesterday that may be the first day of
+    /// a period. It sets the cycle day, but stays out of the statistics and the history until it
+    /// turns out to be a period.
+    private let starts: [PeriodRange]
 
-    /// `today` lets a single day marked today or yesterday count as a possible first day of a period.
+    /// `today` lets a mark from today or yesterday count as a possible first day of a period,
+    /// and keeps the period still in progress out of her usual period length.
     public init(periodDays: some Collection<LocalDate>, today: LocalDate? = nil, lutealLength: Int = 13) {
         let stretches = CycleMath.periods(from: periodDays)
-        let starts = CycleMath.cycleStarts(from: stretches, today: today)
+        let settled = CycleMath.cycleStarts(from: stretches)
         self.bleeding = stretches
-        self.periods = starts
-        self.stats = CycleStats(periods: starts)
+        self.periods = settled
+        self.starts = today == nil ? settled : CycleMath.cycleStarts(from: stretches, today: today)
+        self.stats = CycleStats(periods: settled, today: today)
         self.lutealLength = lutealLength
     }
 
     // MARK: - Today
 
     public func status(on today: LocalDate) -> CycleStatus {
-        guard let current = periods.last(where: { $0.start <= today }) else {
+        guard let current = starts.last(where: { $0.start <= today }) else {
             return CycleStatus(state: .noData, cycleDay: nil, lastPeriod: nil, prediction: nil)
         }
         let cycleDay = current.start.days(to: today) + 1
@@ -142,7 +182,7 @@ public struct CycleEngine: Sendable {
     /// The day of the cycle that `date` falls in, or `nil` before the first period,
     /// inside a gap in the data and after a long time without a period.
     public func cycleDay(on date: LocalDate) -> Int? {
-        guard let current = periods.last(where: { $0.start <= date }) else { return nil }
+        guard let current = starts.last(where: { $0.start <= date }) else { return nil }
         let day = current.start.days(to: date) + 1
         if let next = periods.first(where: { $0.start > date }) {
             guard CycleStats.plausibleCycleRange.contains(current.start.days(to: next.start)) else { return nil }
@@ -155,7 +195,7 @@ public struct CycleEngine: Sendable {
     /// The phase of `date`, or `nil` when the data can't tell (before the first period,
     /// after a long gap, or after the expected window of a late period).
     public func phase(on date: LocalDate, today: LocalDate) -> PhaseInfo? {
-        guard let current = periods.last(where: { $0.start <= date }) else { return nil }
+        guard let current = starts.last(where: { $0.start <= date }) else { return nil }
         let cycleDay = current.start.days(to: date) + 1
         let isPrediction = date > today
 
@@ -176,8 +216,10 @@ public struct CycleEngine: Sendable {
         // The cycle that is still running.
         guard cycleDay <= Self.staleAfterDays else { return nil }
 
-        // Today or later, within her usual period length: most likely still bleeding, just not marked yet.
-        if date >= today, cycleDay <= stats.typicalPeriodLength {
+        // While today is within her usual period length, unmarked days of that stretch are most
+        // likely still period days – she just hasn't marked them (yet).
+        let usualPeriod = stats.typicalPeriodLength
+        if cycleDay <= usualPeriod, current.start.days(to: today) < usualPeriod {
             return PhaseInfo(phase: .menstrual, cycleDay: cycleDay, confidence: .medium,
                              isLoggedPeriod: false, isPrediction: isPrediction)
         }
