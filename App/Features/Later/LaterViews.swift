@@ -9,14 +9,15 @@ struct ComingSoonCard: View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
                 Text("w budowie").sectionTitle()
-                Text(intro).bodyText()
+                Text(polish: intro).bodyText()
                 ForEach(items, id: \.self) { item in
                     HStack(alignment: .top, spacing: 10) {
                         OrganicStar()
                             .fill(Palette.accentDim)
                             .frame(width: 9, height: 9)
                             .padding(.top, 5)
-                        Text(item).bodyText()
+                            .accessibilityHidden(true)
+                        Text(polish: item).bodyText()
                     }
                 }
             }
@@ -49,7 +50,7 @@ struct MovementView: View {
                 items: [
                     "propozycja na dziś według fazy i Twojej energii",
                     "etapy 1–3 – poprzeczka idzie w górę tylko za Twoją zgodą",
-                    "kroki z iPhone'a i seria tygodniowa zamiast „dni pod rząd”"
+                    "kroki z iPhone’a i seria tygodniowa zamiast „dni pod rząd”"
                 ]
             )
         }

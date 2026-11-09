@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import Combine
 import AboutHerCore
 
 nonisolated enum AppTab: String, Hashable {
@@ -41,12 +43,16 @@ struct RootView: View {
         }
         .tint(Palette.accent)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase, initial: true) { oldPhase, phase in
             if phase == .active {
                 store.refreshToday()
-            } else {
+            } else if oldPhase != phase {
                 store.saveNow()
             }
+        }
+        // Midnight (and time zone changes) while the app stays open.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            store.refreshToday()
         }
         .onChange(of: store.problem, initial: true) { _, problem in
             isShowingProblem = problem != nil

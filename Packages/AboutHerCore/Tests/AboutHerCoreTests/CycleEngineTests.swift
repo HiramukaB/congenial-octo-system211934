@@ -164,4 +164,85 @@ struct CycleEngineTests {
         #expect(info.isLoggedPeriod)
         #expect(info.cycleDay == 3)
     }
+
+    // MARK: - Spotting, unmarked period days, the first cycle
+
+    @Test func aLoneSpottingDayDoesNotStartACycle() {
+        let h = history(from: first, cycles: regular, bleed: 5)
+        let spotting = h.lastStart.adding(days: 16)            // cycle day 17
+        let today = h.lastStart.adding(days: 19)               // cycle day 20
+        let engine = CycleEngine(periodDays: h.days.union([spotting]), today: today)
+        #expect(engine.stats.cycleLengths == regular)
+        #expect(engine.periods.last?.start == h.lastStart)
+        #expect(engine.status(on: today).cycleDay == 20)
+        // The marked day itself still reads as bleeding, inside the running cycle.
+        #expect(engine.phase(on: spotting, today: today)?.isLoggedPeriod == true)
+        #expect(engine.phase(on: spotting, today: today)?.cycleDay == 17)
+    }
+
+    @Test func aDayMarkedTodayCountsAsDayOneUntilItTurnsOutToBeSpotting() {
+        let h = history(from: first, cycles: regular, bleed: 5)
+        let marked = h.lastStart.adding(days: 16)
+        let days = h.days.union([marked])
+        #expect(CycleEngine(periodDays: days, today: marked).status(on: marked).cycleDay == 1)
+        let nextDay = marked.adding(days: 1)
+        #expect(CycleEngine(periodDays: days, today: nextDay).status(on: nextDay).cycleDay == 2)
+        let twoDaysLater = marked.adding(days: 2)
+        #expect(CycleEngine(periodDays: days, today: twoDaysLater).status(on: twoDaysLater).cycleDay == 19)
+    }
+
+    @Test func spottingJustBeforeAPeriodDoesNotMoveTheCycleStart() {
+        let h = history(from: first, cycles: [26, 30], bleed: 5)
+        let engine = CycleEngine(periodDays: h.days.union([h.lastStart.adding(days: -4)]))
+        #expect(engine.periods.last?.start == h.lastStart)
+        #expect(engine.stats.cycleLengths == [26, 30])
+    }
+
+    @Test func anUnmarkedDayWithinHerUsualPeriodLengthIsProbablyStillPeriod() {
+        let h = history(from: first, cycles: regular, bleed: 5)
+        var days = h.days
+        // Of the newest period only the first day is marked so far.
+        for offset in 1..<5 { days.remove(h.lastStart.adding(days: offset)) }
+        let today = h.lastStart.adding(days: 2)                // day 3
+        let engine = CycleEngine(periodDays: days, today: today)
+        let info = engine.phase(on: today, today: today)
+        #expect(info?.phase == .menstrual)
+        #expect(info?.isLoggedPeriod == false)
+        #expect(info?.confidence == .medium)
+        #expect(engine.phase(on: h.lastStart.adding(days: 4), today: today)?.phase == .menstrual)
+        #expect(engine.phase(on: h.lastStart.adding(days: 6), today: today)?.phase == .follicular)
+        // Days she has already lived through without marking them were not period days.
+        let later = h.lastStart.adding(days: 6)
+        #expect(engine.phase(on: h.lastStart.adding(days: 2), today: later)?.phase == .follicular)
+    }
+
+    @Test func withOnlyOnePeriodTheAppNeverSaysLate() {
+        let engine = CycleEngine(periodDays: history(from: first, cycles: [], bleed: 5).days)
+        let prediction = engine.nextPeriod(after: engine.periods[0])
+        #expect(prediction.earliest == first.adding(days: 21))
+        #expect(prediction.latest == first.adding(days: 35))
+
+        let today = first.adding(days: 39)                     // day 40, past a textbook 28 ± 7
+        let status = engine.status(on: today)
+        guard case .active(let info) = status.state else {
+            Issue.record("expected an active cycle")
+            return
+        }
+        #expect(info.cycleDay == 40)
+        #expect(status.prediction == nil)
+        #expect(engine.phase(on: today.adding(days: 1), today: today) == nil)
+    }
+
+    @Test func cycleDayIsKnownEvenWhereThePhaseIsNot() {
+        let h = history(from: first, cycles: irregular)
+        let engine = CycleEngine(periodDays: h.days)
+        let today = h.lastStart.adding(days: 60)
+        #expect(engine.phase(on: h.lastStart.adding(days: 55), today: today) == nil)
+        #expect(engine.cycleDay(on: h.lastStart.adding(days: 55)) == 56)
+        #expect(engine.cycleDay(on: h.lastStart.adding(days: 95)) == nil)
+        #expect(engine.cycleDay(on: first.adding(days: -1)) == nil)
+
+        let gap = history(from: first, cycles: [30, 140, 31])
+        #expect(CycleEngine(periodDays: gap.days).cycleDay(on: first.adding(days: 100)) == nil)
+    }
 }

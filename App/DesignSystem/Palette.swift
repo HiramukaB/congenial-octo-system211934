@@ -6,7 +6,9 @@ enum Palette {
     static let card = Color(hex: 0x1E1D1B)
     static let text = Color(hex: 0xF0EEEA)
     static let text2 = Color(hex: 0xC9C7C2)
-    static let muted = Color(hex: 0x8A8A88)
+    /// Lighter than the web's #8A8A88: the native cards are frosted, and small grey text
+    /// needs at least 4.5:1 contrast on them.
+    static let muted = Color(hex: 0xA09F9B)
     static let line = Color(hex: 0x2A2A28)
     static let accent = Color(hex: 0xD6CDB4)
     static let accentDim = Color(hex: 0xA8A08C)

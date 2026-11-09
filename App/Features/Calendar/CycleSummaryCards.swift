@@ -1,16 +1,20 @@
 import SwiftUI
 import AboutHerCore
 
-/// Typical cycle and period length, with an honest note when cycles vary a lot.
+/// Typical cycle and period length, with an honest note when cycles vary a lot or are long.
 struct CycleStatsCard: View {
     let stats: CycleStats
+    /// How many periods are marked; with two or more but no countable cycle, the gaps are too long.
+    let periodCount: Int
 
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Twój rytm").sectionTitle()
                 if stats.cycleLengths.isEmpty {
-                    Text("zaznacz przynajmniej dwa okresy, a policzę Twój typowy cykl")
+                    Text(polish: periodCount >= 2
+                         ? "między zaznaczonymi okresami są zbyt długie przerwy. Zaznacz dwa kolejne okresy, a policzę Twój typowy cykl"
+                         : "zaznacz przynajmniej dwa okresy, a policzę Twój typowy cykl")
                         .bodyText()
                 } else {
                     HStack(alignment: .top, spacing: 12) {
@@ -22,7 +26,7 @@ struct CycleStatsCard: View {
                                  detail: nil)
                     }
                     if stats.isIrregular || (stats.longestCycle ?? 0) > 38 {
-                        Text(irregularNote)
+                        Text(polish: rhythmNote)
                             .font(.footnote)
                             .foregroundStyle(Palette.muted)
                             .fixedSize(horizontal: false, vertical: true)
@@ -37,10 +41,12 @@ struct CycleStatsCard: View {
         return "ostatnio \(shortest)–\(longest) dni"
     }
 
-    private var irregularNote: String {
-        let spread = stats.variability.map { "różnią się nawet o \(PolishPlural.days($0))" } ?? "bywają długie"
-        return "Twoje cykle \(spread), więc prognozy są szerokie, a fazy w drugiej połowie cyklu to szacunek. "
-            + "Jeśli cykle regularnie trwają dłużej niż 38 dni albo bardzo się różnią, warto wspomnieć o tym ginekologowi."
+    private var rhythmNote: String {
+        if stats.isIrregular, let spread = stats.variability {
+            return "Twoje ostatnie cykle różnią się nawet o \(PolishPlural.days(spread)), więc prognozy są szerokie, a fazy w drugiej połowie cyklu to szacunek. Jeśli tak jest często, warto wspomnieć o tym ginekologowi"
+        }
+        let longest = stats.longestCycle ?? stats.typicalCycleLength
+        return "najdłuższy z Twoich ostatnich cykli trwał \(PolishPlural.days(longest)). Jeśli cykle często są dłuższe niż 38 dni, warto wspomnieć o tym ginekologowi"
     }
 }
 
@@ -55,7 +61,7 @@ struct StatTile: View {
                 .font(.caption)
                 .foregroundStyle(Palette.muted)
             Text(value)
-                .font(.ahDisplay(22, weight: .medium))
+                .displayFont(22, weight: .medium, relativeTo: .title2)
                 .foregroundStyle(Palette.text)
             if let detail {
                 Text(detail)
@@ -64,6 +70,7 @@ struct StatTile: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -75,6 +82,14 @@ struct PeriodHistoryCard: View {
         let period: PeriodRange
         let cycleLength: Int?
         var id: LocalDate { period.start }
+
+        /// A start-to-start distance outside the plausible range is a gap in her notes, not a cycle.
+        var cycleLabel: String? {
+            guard let cycleLength else { return nil }
+            return CycleStats.plausibleCycleRange.contains(cycleLength)
+                ? "cykl \(PolishPlural.days(cycleLength))"
+                : "przerwa w zapisach"
+        }
     }
 
     var body: some View {
@@ -85,7 +100,7 @@ struct PeriodHistoryCard: View {
                     .sectionTitle()
                     .padding(.bottom, 6)
                 if rows.isEmpty {
-                    Text("tu pojawią się Twoje okresy, gdy zaznaczysz je w kalendarzu")
+                    Text(polish: "tu pojawią się Twoje okresy, gdy zaznaczysz je w kalendarzu")
                         .bodyText()
                 } else {
                     ForEach(rows) { row in
@@ -93,17 +108,19 @@ struct PeriodHistoryCard: View {
                             Circle()
                                 .fill(CyclePhase.menstrual.tint)
                                 .frame(width: 6, height: 6)
+                                .accessibilityHidden(true)
                             Text("\(PolishDate.range(row.period.start, row.period.end)) · \(PolishPlural.days(row.period.length))")
                                 .font(.subheadline)
                                 .foregroundStyle(Palette.text2)
                             Spacer()
-                            if let length = row.cycleLength {
-                                Text("cykl \(PolishPlural.days(length))")
+                            if let label = row.cycleLabel {
+                                Text(label)
                                     .font(.caption)
                                     .foregroundStyle(Palette.muted)
                             }
                         }
                         .padding(.vertical, 10)
+                        .accessibilityElement(children: .combine)
                         if row.id != rows.last?.id {
                             Rectangle()
                                 .fill(Palette.line)

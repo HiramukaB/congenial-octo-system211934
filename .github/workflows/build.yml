@@ -18,14 +18,16 @@ env:
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
 
 # core, ipa i screenshots idą równolegle, więc jeden przebieg pokazuje wszystkie błędy naraz.
-# Wydanie „najnowsza” powstaje tylko wtedy, gdy przeszły testy logiki i zbudowała się IPA.
+# Wydanie „najnowsza” powstaje tylko wtedy, gdy przeszły testy logiki, zbudowała się IPA
+# i aplikacja uruchomiła się w symulatorze (każda zakładka oraz zapis i odczyt danych).
+# Numer wersji to 0.1.<numer przebiegu>, więc każdy build da się odróżnić.
 jobs:
   core:
     name: Logika – testy na Linuksie
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Wersja Swifta
         run: swift --version
@@ -39,7 +41,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Najnowszy stabilny Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -61,6 +63,8 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/device \
+            MARKETING_VERSION="0.1.${{ github.run_number }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -76,7 +80,7 @@ jobs:
           ls -lh AboutHer.ipa
 
       - name: Zapisz IPA jako artefakt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AboutHer-ipa
           path: dist/AboutHer.ipa
@@ -87,7 +91,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Najnowszy stabilny Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -100,7 +104,7 @@ jobs:
       - name: Wygeneruj projekt Xcode
         run: xcodegen generate
 
-      - name: Uruchom każdą zakładkę i zrób zrzut
+      - name: Uruchom każdą zakładkę, zrób zrzuty i sprawdź zapis danych
         run: |
           set -o pipefail
           DEVICE_ID=$(xcrun simctl list devices available --json | python3 .github/scripts/pick_simulator.py)
@@ -113,7 +117,7 @@ jobs:
 
       - name: Zapisz zrzuty ekranu
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screenshots
           path: ~/screenshots
@@ -121,14 +125,14 @@ jobs:
 
   release:
     name: Wydanie „najnowsza”
-    needs: [core, ipa]
+    needs: [core, ipa, screenshots]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: AboutHer-ipa
           path: dist
@@ -141,6 +145,6 @@ jobs:
           gh release delete najnowsza --yes --cleanup-tag || true
           gh release create najnowsza dist/AboutHer.ipa \
             --target "$GITHUB_SHA" \
-            --title "about her – najnowsza wersja" \
-            --notes "Zbudowano z commita ${GITHUB_SHA::7}. Pobierz AboutHer.ipa na iPhonie i otwórz w AltStore." \
+            --title "about her 0.1.${{ github.run_number }}" \
+            --notes "Wersja 0.1.${{ github.run_number }}, zbudowana z commita ${GITHUB_SHA::7}. Pobierz AboutHer.ipa na iPhonie i zainstaluj w AltStore." \
             --prerelease

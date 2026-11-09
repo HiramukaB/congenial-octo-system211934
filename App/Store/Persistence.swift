@@ -18,11 +18,12 @@ struct Persistence {
         return Persistence(directory: directory)
     }
 
-    /// `nil` on the very first launch.
-    func load() throws -> AppData? {
+    /// The saved file as it is on disk, or `nil` when there is none yet (the very first launch).
+    /// Throws when the file exists but can't be read right now, e.g. while the phone is still
+    /// locked after a restart.
+    func readSavedFile() throws -> Data? {
         guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else { return nil }
-        let raw = try Data(contentsOf: fileURL)
-        return try AppDataCoding.decode(raw)
+        return try Data(contentsOf: fileURL)
     }
 
     func save(_ appData: AppData) throws {
@@ -48,10 +49,34 @@ struct Persistence {
         }
     }
 
-    /// Moves an unreadable file aside, so nothing ever overwrites her history.
-    func setAsideDamagedFile() {
+    /// The newest daily copy that can still be read, with the day it was made.
+    func newestReadableBackup() -> (data: AppData, day: LocalDate)? {
+        let files = (try? FileManager.default.contentsOfDirectory(at: backupDirectory, includingPropertiesForKeys: nil)) ?? []
+        let newestFirst = files
+            .filter { $0.pathExtension == "json" }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+        for url in newestFirst {
+            let name = url.deletingPathExtension().lastPathComponent     // about-her-2026-11-09
+            guard let day = LocalDate(iso: String(name.suffix(10))),
+                  let raw = try? Data(contentsOf: url),
+                  !AppDataCoding.isFromNewerVersion(raw),
+                  let backup = try? AppDataCoding.decode(raw)
+            else { continue }
+            return (backup, day)
+        }
+        return nil
+    }
+
+    /// Moves an unreadable file aside (or at least copies it), so nothing ever overwrites her history.
+    /// Returns `false` when the file could be neither moved nor copied.
+    @discardableResult
+    func setAsideDamagedFile() -> Bool {
+        let fileManager = FileManager.default
         let stamp = Int(Date().timeIntervalSince1970)
         let target = directory.appending(path: "about-her-uszkodzony-\(stamp).json")
-        try? FileManager.default.moveItem(at: fileURL, to: target)
+        if (try? fileManager.moveItem(at: fileURL, to: target)) != nil {
+            return true
+        }
+        return (try? fileManager.copyItem(at: fileURL, to: target)) != nil
     }
 }

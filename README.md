@@ -12,8 +12,8 @@ Cykl, jedzenie, ruch, sen i wnętrze w jednym miejscu, w zgodzie z rytmem cyklu 
 |---|---|
 | Design system: kolory, gwiazdka, animowane tło, karty | gotowe |
 | 5 zakładek: dziś · kalendarz · jedzenie · ruch · ja | szkielet |
-| Cykl: kalendarz okresu, fazy z poziomem pewności, prognoza, spóźnienia | gotowe |
-| Zapis danych (plik JSON) z dziennymi kopiami | gotowe |
+| Cykl: kalendarz okresu, fazy z poziomem pewności, prognoza, spóźnienia, plamienia | gotowe |
+| Zapis danych (plik JSON) z dziennymi kopiami i odtwarzaniem z kopii | gotowe |
 | Import dni okresu z kopii wersji HTML | gotowe |
 | Jedzenie, ruch, wnętrze | w budowie |
 
@@ -25,7 +25,7 @@ App/                      aplikacja SwiftUI
   Features/               ekrany: Today, Calendar, Me i zakładki w budowie
   Store/                  stan aplikacji i zapis do pliku
 Packages/AboutHerCore/    logika bez interfejsu (daty, silnik cyklu, dane) + testy
-UITests/                  test robiący zrzuty ekranu każdej zakładki
+UITests/                  zrzuty ekranu każdej zakładki i test zapisu danych
 project.yml               definicja projektu dla XcodeGen (.xcodeproj się generuje)
 .github/workflows/        budowanie w chmurze
 ```
@@ -37,34 +37,52 @@ przy każdym `git push` na gałąź `main`. Trzy zadania idą równolegle:
 
 1. **Logika – testy na Linuksie:** `swift test` dla pakietu `AboutHerCore`.
 2. **Aplikacja – AboutHer.ipa** (`macos-26`): generuje projekt XcodeGenem, buduje aplikację
-   bez podpisu i pakuje ją do `AboutHer.ipa`.
-3. **Zrzuty ekranu** (`macos-26`): uruchamia każdą zakładkę w symulatorze iPhone'a
-   i zapisuje zrzuty jako artefakt `screenshots`.
+   bez podpisu i pakuje ją do `AboutHer.ipa`. Wersja to `0.1.<numer przebiegu>`.
+3. **Zrzuty ekranu** (`macos-26`): uruchamia każdą zakładkę w symulatorze iPhone'a,
+   zapisuje zrzuty jako artefakt `screenshots` i sprawdza, że zaznaczony dzień
+   przetrwa ponowne uruchomienie aplikacji.
 
-Gdy testy logiki przejdą, a IPA się zbuduje, czwarte zadanie publikuje ją
+Gdy wszystkie trzy przejdą, czwarte zadanie publikuje IPA
 w wydaniu **[najnowsza](https://github.com/HiramukaB/congenial-octo-system211934/releases/tag/najnowsza)**.
 Aplikację podpisuje dopiero AltStore przy instalacji, darmowym Apple ID.
 
 ## Instalacja na iPhonie (AltStore + Windows)
 
 **Jednorazowo**
-1. Zainstaluj AltServer na Windowsie według [instrukcji AltStore](https://faq.altstore.io/).
+1. Zainstaluj AltServer dla Windows – AltStore Classic, nie AltStore PAL, w wersji 1.7.4 lub nowszej –
+   według [instrukcji AltStore dla Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows).
    iTunes i iCloud muszą być pobrane ze strony Apple, nie z Microsoft Store.
-2. Podłącz iPhone'a kablem, przez AltServer zainstaluj na nim AltStore i zaloguj się swoim Apple ID.
-3. Na iPhonie:
-   - włącz Tryb dewelopera (Ustawienia → Prywatność i ochrona; telefon się zrestartuje),
-   - w Ustawienia → Ogólne → VPN i urządzenia zaufaj swojemu profilowi dewelopera.
+2. Podłącz iPhone'a kablem, odblokuj go i stuknij „Zaufaj”, jeśli zapyta o ten komputer.
+   W iTunes kliknij przycisk iPhone'a (lewy górny róg) → Podsumowanie, zaznacz
+   „Synchronizuj z tym iPhone'em przez Wi-Fi” i kliknij **Zastosuj**. Bez tego AltServer
+   nie zobaczy telefonu przez Wi-Fi i odświeżanie w tle nie zadziała.
+3. Kliknij ikonę AltServera w zasobniku → Install AltStore → swój iPhone i zaloguj się swoim Apple ID.
+   AltServer zostaw włączony (najlepiej uruchamiany razem z Windowsem).
+4. Na iPhonie:
+   - w Ustawienia → Ogólne → VPN i urządzenia zarządzane stuknij swój Apple ID i wybierz „Zaufaj”,
+   - włącz Tryb dewelopera (Ustawienia → Prywatność i ochrona → Tryb dewelopera). Telefon się
+     zrestartuje; po restarcie odblokuj go i potwierdź włączenie kodem.
 
 **Instalacja i aktualizacje**
 1. Na iPhonie otwórz w Safari
    [AboutHer.ipa z wydania najnowsza](https://github.com/HiramukaB/congenial-octo-system211934/releases/download/najnowsza/AboutHer.ipa).
    Plik trafi do Pobranych rzeczy.
-2. W AltStore wybierz: Moje aplikacje → `+` i wskaż pobrany plik.
-3. Nowa wersja instaluje się na starą, **dane zostają**.
+2. Komputer z AltServerem musi być włączony i w tej samej sieci Wi-Fi co iPhone (albo iPhone
+   podłączony do niego kablem) – inaczej AltStore pokaże błąd „AltServer could not be found”.
+   W AltStore wybierz Moje aplikacje (My Apps) → `+` i wskaż pobrany plik.
+3. Nowa wersja instaluje się na starą i **dane zostają**, o ile AltStore jest zalogowany tym samym
+   Apple ID co przy pierwszej instalacji. Z innym Apple ID pojawi się druga, pusta kopia aplikacji –
+   nie usuwaj wtedy starej (to w niej są dane), tylko zaloguj AltStore z powrotem pierwotnym
+   Apple ID i zainstaluj plik jeszcze raz.
+4. Numer wersji jest na dole zakładki „ja” i w tytule wydania. Po instalacji usuń pobrany plik
+   z Pobranych rzeczy, żeby przy następnej aktualizacji nie wybrać starego.
 
-**Co 7 dni** AltStore musi odświeżyć podpis. Robi to sam w tle, gdy telefon jest w tej samej sieci
-Wi-Fi co komputer z włączonym AltServerem. Jeśli podpis wygaśnie, aplikacja się nie otworzy,
-ale dane są bezpieczne – wystarczy odświeżyć.
+**Co 7 dni** AltStore musi odświeżyć podpis – swój i tej aplikacji. Robi to w tle, gdy komputer
+z działającym AltServerem jest w tej samej sieci Wi-Fi. Dla pewności raz na kilka dni, będąc w domu,
+otwórz AltStore → Moje aplikacje (My Apps) → Refresh All. Jeśli podpis wygaśnie, aplikacja się
+nie otworzy, ale dane są bezpieczne – odśwież ją w AltStore. Jeśli nie otwiera się też sam AltStore,
+podłącz iPhone'a kablem i w AltServerze wybierz ponownie Install AltStore (nie usuwa aplikacji
+ani danych, jeśli to ten sam Apple ID), a potem w AltStore Refresh All.
 
 > ⚠️ **Nie usuwaj aplikacji z telefonu.** Usunięcie kasuje jej dane.
 > Aplikacja trzyma 14 dziennych kopii, ale na tym samym telefonie.
@@ -84,3 +102,8 @@ ale dane są bezpieczne – wystarczy odświeżyć.
 - Argumenty uruchomienia:
   - `-demoData` – fikcyjna historia, nic nie zapisuje;
   - `-startTab calendar` – otwiera wybraną zakładkę (`today`, `calendar`, `food`, `movement`, `me`).
+- Zapis danych: plik `Application Support/AboutHer/about-her.json`, kopie w `Kopie/`.
+  Dopóki plik nie zostanie odczytany, aplikacja niczego nie zapisuje (np. zaraz po restarcie
+  telefonu, przed pierwszym odblokowaniem). Uszkodzony plik jest odkładany na bok, a dane
+  wracają z najnowszej dobrej kopii. Pliku z nowszej wersji (wyższy `schemaVersion` albo
+  nieznane pola) starsza wersja tylko wyświetla i nigdy go nie nadpisuje.

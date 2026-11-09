@@ -56,6 +56,9 @@ struct LinkButtonStyle: ButtonStyle {
                     .frame(height: 1)
             }
             .opacity(configuration.isPressed ? 0.55 : 1)
+            // A tap area of at least 44 pt without changing the layout around the link.
+            .padding(.vertical, 10)
             .contentShape(Rectangle())
+            .padding(.vertical, -10)
     }
 }

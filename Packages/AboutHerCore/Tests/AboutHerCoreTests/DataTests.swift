@@ -23,6 +23,14 @@ struct DataTests {
         #expect(appData.schemaVersion == AppData.currentSchemaVersion)
     }
 
+    @Test func recognisesFilesWrittenByANewerVersion() throws {
+        #expect(!AppDataCoding.isFromNewerVersion(try AppDataCoding.encode(AppData())))
+        #expect(!AppDataCoding.isFromNewerVersion(Data("{}".utf8)))
+        #expect(!AppDataCoding.isFromNewerVersion(Data("not json".utf8)))
+        #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":2,"periodDays":[]}"#.utf8)))
+        #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":1,"periodDays":[],"meals":[]}"#.utf8)))
+    }
+
     @Test func togglingTwiceRemovesTheDay() {
         var appData = AppData()
         let day = LocalDate(year: 2025, month: 5, day: 5)
@@ -53,6 +61,8 @@ struct DataTests {
         #expect(PolishDate.long(saturday) == "sobota, 7 listopada")
         #expect(PolishDate.monthYear(saturday) == "listopad 2026")
         #expect(PolishDate.range(LocalDate(year: 2026, month: 8, day: 31), LocalDate(year: 2026, month: 9, day: 15)) == "31 sie – 15 wrz")
+        #expect(PolishDate.range(LocalDate(year: 2026, month: 10, day: 24), LocalDate(year: 2026, month: 10, day: 28)) == "24–28 paź")
+        #expect(PolishDate.range(saturday, saturday) == "7 lis")
         #expect(PolishPlural.days(1) == "1 dzień")
         #expect(PolishPlural.days(2) == "2 dni")
         #expect(PolishPlural.days(12) == "12 dni")

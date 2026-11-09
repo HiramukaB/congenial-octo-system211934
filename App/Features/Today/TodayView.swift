@@ -23,15 +23,21 @@ struct TodayView: View {
                         onNext: { dayOffset = min(0, dayOffset + 1) },
                         onToday: { dayOffset = 0 })
             if dayOffset == 0 {
-                CycleStatusCard(status: status, today: today, stats: engine.stats) {
-                    selectedTab = .calendar
-                }
+                CycleStatusCard(status: status,
+                                today: today,
+                                stats: engine.stats,
+                                onMarkToday: { store.togglePeriodDay(today) },
+                                onOpenCalendar: { selectedTab = .calendar })
             } else {
-                PastDayCycleCard(info: info)
+                PastDayCycleCard(info: info, cycleDay: engine.cycleDay(on: date))
             }
             if let phase = guidePhase(info: info, status: status) {
                 PhaseGuideCard(phase: phase)
             }
+        }
+        .onChange(of: store.today) {
+            // A new day began while she was browsing: start again from today.
+            dayOffset = 0
         }
     }
 
@@ -72,14 +78,14 @@ struct DaySwitcher: View {
             VStack(spacing: 3) {
                 if isToday {
                     Text("dziś")
-                        .font(.ahDisplay(24).italic())
+                        .displayFont(24, italic: true, relativeTo: .title2)
                         .foregroundStyle(Palette.accent)
                     Text(PolishDate.long(date))
                         .font(.caption)
                         .foregroundStyle(Palette.muted)
                 } else {
                     Text(PolishDate.long(date))
-                        .font(.ahDisplay(19, weight: .medium))
+                        .displayFont(19, weight: .medium, relativeTo: .title3)
                         .foregroundStyle(Palette.text)
                     Button("wróć do dziś", action: onToday)
                         .buttonStyle(LinkButtonStyle(font: .caption.weight(.medium)))
@@ -95,6 +101,7 @@ struct CycleStatusCard: View {
     let status: CycleStatus
     let today: LocalDate
     let stats: CycleStats
+    let onMarkToday: () -> Void
     let onOpenCalendar: () -> Void
 
     var body: some View {
@@ -103,27 +110,31 @@ struct CycleStatusCard: View {
                 switch status.state {
                 case .noData:
                     Text("Twój cykl").eyebrow()
-                    Text("zaznacz pierwszy okres w kalendarzu, a pokażę Ci, gdzie jesteś w cyklu")
+                    Text(polish: "zaznacz pierwszy okres w kalendarzu, a pokażę Ci, gdzie jesteś w cyklu")
                         .bodyText()
                     Button("otwórz kalendarz", action: onOpenCalendar)
                         .buttonStyle(LinkButtonStyle())
                 case .active(let info):
-                    ActiveCycleContent(info: info, prediction: status.prediction, today: today)
+                    ActiveCycleContent(info: info,
+                                       prediction: status.prediction,
+                                       today: today,
+                                       stats: stats,
+                                       onMarkToday: onMarkToday)
                 case .late(let daysLate):
                     Text("okres się spóźnia").eyebrow()
-                    Text(lateTitle(daysLate))
-                        .font(.ahDisplay(36))
+                    Text("dzień cyklu \(status.cycleDay ?? 0)")
+                        .displayFont(36, relativeTo: .largeTitle)
                         .foregroundStyle(Palette.text)
-                    Text(lateExplanation)
+                    Text(polish: lateText(daysLate: daysLate))
                         .bodyText()
                     Button("zaznacz okres w kalendarzu", action: onOpenCalendar)
                         .buttonStyle(LinkButtonStyle())
                 case .stale(let days):
                     Text("ostatni zapisany okres").eyebrow()
                     Text("\(PolishPlural.days(days)) temu")
-                        .font(.ahDisplay(36))
+                        .displayFont(36, relativeTo: .largeTitle)
                         .foregroundStyle(Palette.text)
-                    Text("zaznacz kolejne okresy w kalendarzu, a prognozy znów będą miały sens")
+                    Text(polish: "zaznacz w kalendarzu okresy, które były od tamtej pory, a znów pokażę Ci prognozy. Jeśli okresu naprawdę nie było tak długo, warto powiedzieć o tym ginekologowi")
                         .bodyText()
                     Button("otwórz kalendarz", action: onOpenCalendar)
                         .buttonStyle(LinkButtonStyle())
@@ -132,15 +143,20 @@ struct CycleStatusCard: View {
         }
     }
 
-    private func lateTitle(_ days: Int) -> String {
-        "o \(PolishPlural.days(days))"
+    private func lateText(daysLate: Int) -> String {
+        guard let prediction = status.prediction else { return lateExplanation }
+        return "spodziewałam się go około \(PolishDate.short(prediction.expected)), czyli \(PolishPlural.days(daysLate)) temu. "
+            + lateExplanation
     }
 
     private var lateExplanation: String {
-        if let longest = stats.longestCycle {
-            return "najdłuższy z Twoich ostatnich cykli miał \(PolishPlural.days(longest)). Może zapomniałaś zaznaczyć okres?"
+        guard let longest = stats.longestCycle, let day = status.cycleDay else {
+            return "Może zapomniałaś zaznaczyć okres?"
         }
-        return "może zapomniałaś zaznaczyć okres?"
+        if day > longest {
+            return "Najdłuższy z Twoich ostatnich cykli miał \(PolishPlural.days(longest)). Może zapomniałaś zaznaczyć okres?"
+        }
+        return "Zdarzył Ci się już cykl \(PolishPlural.days(longest)), więc to może być po prostu dłuższy cykl. Może też zapomniałaś zaznaczyć okres?"
     }
 }
 
@@ -148,32 +164,41 @@ struct ActiveCycleContent: View {
     let info: PhaseInfo
     let prediction: PeriodPrediction?
     let today: LocalDate
+    let stats: CycleStats
+    let onMarkToday: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("dzień cyklu").eyebrow()
             HStack(alignment: .firstTextBaseline) {
                 Text(String(info.cycleDay))
-                    .font(.ahDisplay(58))
+                    .displayFont(58, relativeTo: .largeTitle)
                     .foregroundStyle(Palette.text)
                     .contentTransition(.numericText())
                 Spacer()
                 PhasePill(phase: info.phase, isEstimate: info.isEstimate)
             }
-            if let note = info.confidenceNote {
-                Text(note)
+            if let note = info.confidenceNote(stats: stats) {
+                Text(polish: note)
                     .font(.footnote)
                     .foregroundStyle(Palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if info.phase == .menstrual && !info.isLoggedPeriod {
+                Button("zaznacz dziś jako dzień okresu", action: onMarkToday)
+                    .buttonStyle(LinkButtonStyle())
+            }
             if let prediction {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(nextPeriodText(prediction))
+                    Text(polish: nextPeriodText(prediction))
                         .bodyText()
                     Text("możliwy zakres: \(PolishDate.range(prediction.earliest, prediction.latest))")
                         .font(.caption)
                         .foregroundStyle(Palette.muted)
                 }
+            } else {
+                Text(polish: "ten cykl trwa dłużej niż przeciętny, a nie znam jeszcze Twojego rytmu, więc nie zgaduję, kiedy przyjdzie okres")
+                    .bodyText()
             }
         }
     }
@@ -181,11 +206,16 @@ struct ActiveCycleContent: View {
     private func nextPeriodText(_ prediction: PeriodPrediction) -> String {
         let days = today.days(to: prediction.expected)
         let when: String
-        if days > 0 {
+        switch days {
+        case 2...:
             when = "za \(PolishPlural.days(days))"
-        } else if days == 0 {
+        case 1:
+            when = "możliwe, że jutro"
+        case 0:
             when = "możliwe, że dziś"
-        } else {
+        case -1:
+            when = "spodziewany od wczoraj"
+        default:
             when = "spodziewany od \(PolishPlural.days(-days))"
         }
         return "następny okres około \(PolishDate.short(prediction.expected)) · \(when)"
@@ -194,21 +224,30 @@ struct ActiveCycleContent: View {
 
 struct PastDayCycleCard: View {
     let info: PhaseInfo?
+    let cycleDay: Int?
 
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
-                if let info {
+                if let day = info?.cycleDay ?? cycleDay {
                     Text("dzień cyklu").eyebrow()
                     HStack(alignment: .firstTextBaseline) {
-                        Text(String(info.cycleDay))
-                            .font(.ahDisplay(58))
+                        Text(String(day))
+                            .displayFont(58, relativeTo: .largeTitle)
                             .foregroundStyle(Palette.text)
                         Spacer()
-                        PhasePill(phase: info.phase, isEstimate: info.isEstimate)
+                        if let info {
+                            PhasePill(phase: info.phase, isEstimate: info.isEstimate)
+                        }
+                    }
+                    if info == nil {
+                        Text(polish: "fazy tego dnia nie umiem określić – okres się wtedy spóźniał")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.muted)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
-                    Text("dla tego dnia nie mam jeszcze danych o cyklu")
+                    Text(polish: "dla tego dnia nie umiem określić fazy cyklu")
                         .bodyText()
                 }
             }
@@ -227,14 +266,15 @@ struct PhaseGuideCard: View {
                     OrganicStar()
                         .fill(phase.tint)
                         .frame(width: 12, height: 12)
+                        .accessibilityHidden(true)
                     Text("\(phase.season) · co Ci posłuży")
                         .sectionTitle()
                 }
-                GuideRow(symbol: "bolt.heart", title: "energia", text: phase.energyHint)
+                GuideRow(symbol: phase.energySymbol, title: "energia", text: phase.energyHint)
                 GuideRow(symbol: "fork.knife", title: "jedzenie", text: phase.foodHint)
                 GuideRow(symbol: "figure.yoga", title: "ruch", text: phase.movementHint)
                 GuideRow(symbol: "calendar", title: "plan dnia", text: phase.planningHint)
-                Text("to wskazówki, nie zasady. Jeśli dziś czujesz inaczej, słuchaj siebie")
+                Text(polish: "to wskazówki, nie zasady. Jeśli dziś czujesz inaczej, słuchaj siebie")
                     .font(.footnote)
                     .foregroundStyle(Palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -255,11 +295,12 @@ struct GuideRow: View {
                 .foregroundStyle(Palette.accentDim)
                 .frame(width: 22)
                 .padding(.top, 2)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Palette.muted)
-                Text(text)
+                Text(polish: text)
                     .bodyText()
             }
         }

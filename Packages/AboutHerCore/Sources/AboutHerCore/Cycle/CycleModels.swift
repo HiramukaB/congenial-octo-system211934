@@ -59,7 +59,8 @@ public struct CycleStatus: Sendable, Equatable {
         /// No period has been marked yet.
         case noData
         case active(PhaseInfo)
-        /// Past even the longest recent cycle – the period is late, or she forgot to mark it.
+        /// Past the expected window (needs at least one complete cycle) – the period is late,
+        /// or she forgot to mark it. `daysLate` counts from the expected date.
         case late(daysLate: Int)
         /// So long since the last marked period that the history is clearly incomplete.
         case stale(daysSinceLastPeriod: Int)

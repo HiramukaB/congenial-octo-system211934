@@ -24,7 +24,7 @@ public struct AppData: Codable, Sendable, Equatable {
         }
     }
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, periodDays
     }
 
@@ -51,5 +51,41 @@ public enum AppDataCoding {
 
     public static func decode(_ raw: Data) throws -> AppData {
         try JSONDecoder().decode(AppData.self, from: raw)
+    }
+
+    /// True when the file was written by a newer version of the app: a higher schema version,
+    /// or fields this version doesn't know. Such a file must never be saved back by this
+    /// version, because the unknown fields would be lost.
+    public static func isFromNewerVersion(_ raw: Data) -> Bool {
+        guard let topLevel = try? JSONDecoder().decode(TopLevelKeys.self, from: raw) else { return false }
+        if let version = topLevel.schemaVersion, version > AppData.currentSchemaVersion {
+            return true
+        }
+        let known = Set(AppData.CodingKeys.allCases.map(\.rawValue))
+        return !topLevel.keys.isSubset(of: known)
+    }
+
+    private struct TopLevelKeys: Decodable {
+        let keys: Set<String>
+        let schemaVersion: Int?
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: AnyKey.self)
+            keys = Set(container.allKeys.map(\.stringValue))
+            schemaVersion = try? container.decode(Int.self, forKey: AnyKey(stringValue: "schemaVersion"))
+        }
+    }
+
+    private struct AnyKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+
+        init(stringValue: String) {
+            self.stringValue = stringValue
+        }
+
+        init?(intValue: Int) {
+            return nil
+        }
     }
 }

@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The soft four-pointed star from the web version – used instead of rectangular buttons.
-struct OrganicStar: Shape {
+/// `nonisolated`, because SwiftUI may compute shape paths off the main thread.
+nonisolated struct OrganicStar: Shape {
     func path(in rect: CGRect) -> Path {
         // Same curves as the original 24×24 SVG path, scaled into `rect`.
         let scale = min(rect.width, rect.height) / 24

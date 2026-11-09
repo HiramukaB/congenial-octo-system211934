@@ -30,6 +30,16 @@ extension CyclePhase {
         }
     }
 
+    /// A battery that is as full as her energy usually is in this phase.
+    var energySymbol: String {
+        switch self {
+        case .menstrual: "battery.25percent"
+        case .follicular: "battery.75percent"
+        case .ovulatory: "battery.100percent"
+        case .luteal: "battery.50percent"
+        }
+    }
+
     var energyHint: String {
         switch self {
         case .menstrual: "to zwykle czas mniejszej energii. Możesz zwolnić bez wyrzutów sumienia"
@@ -68,18 +78,33 @@ extension CyclePhase {
 }
 
 extension PhaseInfo {
-    /// Honest wording for estimates; nothing for days she marked herself.
-    var confidenceNote: String? {
+    /// Honest wording for estimates, with the real reason; nothing for days she marked herself.
+    func confidenceNote(stats: CycleStats) -> String? {
         guard !isLoggedPeriod else { return nil }
+        if phase == .menstrual {
+            return "Twój okres trwa zwykle \(PolishPlural.days(stats.typicalPeriodLength)), więc zakładam, że jeszcze trwa"
+        }
+        switch stats.cycleLengths.count {
+        case 0:
+            return "na razie zakładam przeciętny cykl \(PolishPlural.days(stats.typicalCycleLength)) – z każdym zaznaczonym okresem będę trafniejsza"
+        case 1:
+            return "znam dopiero jeden Twój cykl, więc to wstępny szacunek"
+        default:
+            break
+        }
         switch confidence {
-        case .high: return nil
-        case .medium: return "to szacunek na podstawie Twoich ostatnich cykli"
-        case .low: return "przy Twoich wahaniach cyklu to tylko szacunek – Twoje samopoczucie jest ważniejsze"
+        case .high:
+            return phase == .ovulatory ? "owulację liczę z kalendarza, więc to zawsze przybliżenie" : nil
+        case .medium:
+            return "to szacunek na podstawie Twoich ostatnich cykli"
+        case .low:
+            return "przy Twoich wahaniach cyklu to tylko szacunek – Twoje samopoczucie jest ważniejsze"
         }
     }
 
+    /// Ovulation is never observed, only counted, so it is always shown as an estimate.
     var isEstimate: Bool {
-        !isLoggedPeriod && confidence < .high
+        !isLoggedPeriod && (confidence < .high || phase == .ovulatory)
     }
 }
 
@@ -100,11 +125,18 @@ struct PhasePill: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(Capsule().fill(phase.tint.opacity(0.16)))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(spokenTitle))
     }
 
     private var title: String {
         let name = "\(phase.label) · \(phase.season)"
         return isEstimate ? "≈ \(name)" : name
+    }
+
+    /// What VoiceOver reads instead of the "≈" and "·" signs.
+    private var spokenTitle: String {
+        let name = "\(phase.label), \(phase.season)"
+        return isEstimate ? "szacunkowo \(name)" : name
     }
 }

@@ -15,7 +15,7 @@ struct CalendarView: View {
             MonthCard(month: $month, engine: engine, periodDays: store.data.periodDays, today: today) { date in
                 store.togglePeriodDay(date)
             }
-            CycleStatsCard(stats: engine.stats)
+            CycleStatsCard(stats: engine.stats, periodCount: engine.periods.count)
             PeriodHistoryCard(periods: engine.periods)
         }
     }
@@ -43,7 +43,7 @@ struct MonthCard: View {
                     }
                     Spacer()
                     Text(PolishDate.monthYear(month))
-                        .font(.ahDisplay(18, weight: .medium))
+                        .displayFont(18, weight: .medium, relativeTo: .headline)
                         .foregroundStyle(Palette.text)
                     Spacer()
                     StarButton(label: "następny miesiąc") {
@@ -56,6 +56,7 @@ struct MonthCard: View {
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(Palette.muted)
                             .frame(maxWidth: .infinity)
+                            .accessibilityHidden(true)
                     }
                     ForEach(cells) { cell in
                         if let date = cell.date {
@@ -72,8 +73,10 @@ struct MonthCard: View {
                         }
                     }
                 }
+                // The day numbers sit in fixed circles; beyond this size they would no longer fit.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 CalendarLegend()
-                Text("dotknij dnia, żeby zaznaczyć albo odznaczyć okres")
+                Text(polish: "dotknij dnia, żeby zaznaczyć albo odznaczyć okres")
                     .font(.footnote)
                     .foregroundStyle(Palette.muted)
                     .multilineTextAlignment(.center)
@@ -89,6 +92,15 @@ struct MonthCard: View {
         let blanks = (0..<leading).map { CalendarCell(id: $0, date: nil) }
         let days = (0..<count).map { CalendarCell(id: leading + $0, date: first.adding(days: $0)) }
         return blanks + days
+    }
+}
+
+/// Like `.plain`, but without the automatic dimming of disabled buttons: future days are
+/// disabled, and their colours already say so – dimming them twice made them unreadable.
+struct DayCellButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 
@@ -116,17 +128,29 @@ struct DayCell: View {
             .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .disabled(isFuture)
+        .buttonStyle(DayCellButtonStyle())
+        // A future day can't be marked, but one that was marked earlier can still be removed.
+        .disabled(isFuture && !isMarked)
         .accessibilityLabel(Text(accessibilityText))
+        .accessibilityIdentifier("day-\(date.iso)")
+    }
+
+    /// An unmarked day inside a period she marked: it counts as part of that period.
+    private var isBridged: Bool {
+        guard let info, !isMarked else { return false }
+        return info.phase == .menstrual && info.isLoggedPeriod
     }
 
     @ViewBuilder private var marker: some View {
         if isMarked {
             Circle().fill(Palette.accent)
+        } else if isBridged {
+            Circle().fill(Palette.accent.opacity(0.3))
         } else if let info, info.phase == .menstrual {
-            // Predicted, or a day bridged inside a marked period.
-            Circle().strokeBorder(CyclePhase.menstrual.tint, style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
+            // A forecast: softer when it is only a rough guess.
+            Circle()
+                .strokeBorder(CyclePhase.menstrual.tint, style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
+                .opacity(info.confidence == .low ? 0.6 : 1)
         } else if isToday {
             Circle().strokeBorder(Palette.accentDim, lineWidth: 1)
         }
@@ -134,6 +158,7 @@ struct DayCell: View {
 
     private var numberColor: Color {
         if isMarked { return Palette.onAccent }
+        if isBridged { return Palette.text }
         if isFuture { return Palette.muted }
         return isToday ? Palette.text : Palette.text2
     }
@@ -147,8 +172,14 @@ struct DayCell: View {
         var parts = [PolishDate.dayMonth(date)]
         if isMarked {
             parts.append("okres zaznaczony")
+        } else if isBridged {
+            parts.append("w środku zaznaczonego okresu")
         } else if let info {
-            parts.append(info.isPrediction ? "prognoza: \(info.phase.label)" : info.phase.label)
+            if info.phase == .menstrual {
+                parts.append("prognoza okresu")
+            } else {
+                parts.append(info.isPrediction ? "prognoza: \(info.phase.label)" : info.phase.label)
+            }
         }
         if isToday {
             parts.append("dziś")

@@ -30,9 +30,15 @@ public enum PolishDate {
         "\(nominativeMonths[date.month - 1]) \(date.year)"
     }
 
-    /// "31 sie – 15 wrz"
+    /// "24–28 paź" within one month, "31 sie – 15 wrz" across months, "9 lis" for a single day.
     public static func range(_ from: LocalDate, _ to: LocalDate) -> String {
-        "\(short(from)) – \(short(to))"
+        if from == to {
+            return short(from)
+        }
+        if from.year == to.year && from.month == to.month {
+            return "\(from.day)–\(to.day) \(shortMonths[to.month - 1])"
+        }
+        return "\(short(from)) – \(short(to))"
     }
 }
 

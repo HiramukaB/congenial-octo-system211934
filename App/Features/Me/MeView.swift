@@ -14,21 +14,21 @@ struct MeView: View {
             Card {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("przenieś dane z wersji HTML").sectionTitle()
-                    Text("w starej wersji wejdź w ustawienia i dotknij „zapisz kopię”. Wybierz ten plik tutaj, a przeniosę zaznaczone dni okresu. Niczego nie nadpiszę.")
+                    Text(polish: "w starej wersji wejdź w ustawienia i dotknij „zapisz kopię”. Wybierz ten plik tutaj, a przeniosę zaznaczone dni okresu. Niczego nie nadpiszę")
                         .bodyText()
                     Button("wybierz plik kopii") {
                         isImporting = true
                     }
                     .buttonStyle(LinkButtonStyle())
                     if let importMessage {
-                        Text(importMessage)
+                        Text(polish: importMessage)
                             .font(.footnote)
                             .foregroundStyle(Palette.accent)
                     }
                 }
             }
             ComingSoonCard(
-                intro: "tu wróci wszystko, co w wersji HTML było w zakładce „wnętrze”:",
+                intro: "tu wróci to, co w wersji HTML było w zakładce „wnętrze” i w ustawieniach, a do tego kilka nowości:",
                 items: [
                     "intencja na dziś, małe zwycięstwa i manifest „kim się stajesz”",
                     "chwila dla siebie: oddech z haptyką i medytacje",
@@ -36,10 +36,19 @@ struct MeView: View {
                     "ustawienia, blokada Face ID i kopie zapasowe"
                 ]
             )
+            Text("about her · wersja \(appVersion)")
+                .font(.caption)
+                .foregroundStyle(Palette.muted)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
         }
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
             handleImport(result)
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
     }
 
     private func handleImport(_ result: Result<URL, any Error>) {
@@ -49,16 +58,28 @@ struct MeView: View {
             defer {
                 if hasAccess { url.stopAccessingSecurityScopedResource() }
             }
+            let raw: Data
             do {
-                let raw = try Data(contentsOf: url)
-                let days = try LegacyImport.periodDays(fromHTMLExport: raw)
-                let added = store.importPeriodDays(days)
-                importMessage = added == 0
-                    ? "nie znalazłam nowych dni okresu – wszystko już tu jest"
-                    : "gotowe – dodałam \(PolishPlural.days(added)) okresu"
+                raw = try Data(contentsOf: url)
+            } catch {
+                importMessage = "nie udało mi się otworzyć tego pliku"
+                return
+            }
+            let days: Set<LocalDate>
+            do {
+                days = try LegacyImport.periodDays(fromHTMLExport: raw)
             } catch {
                 importMessage = "to nie wygląda na kopię z wersji HTML"
+                return
             }
+            // nil: the store can't take changes right now and has already said why.
+            guard let added = store.importPeriodDays(days) else {
+                importMessage = nil
+                return
+            }
+            importMessage = added == 0
+                ? "nie znalazłam nowych dni okresu – wszystko już tu jest"
+                : "gotowe – dodałam \(PolishPlural.days(added)) okresu"
         case .failure:
             importMessage = "nie udało mi się otworzyć tego pliku"
         }
