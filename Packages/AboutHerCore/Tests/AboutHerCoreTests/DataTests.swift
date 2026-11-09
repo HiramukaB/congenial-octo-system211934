@@ -23,12 +23,62 @@ struct DataTests {
         #expect(appData.schemaVersion == AppData.currentSchemaVersion)
     }
 
+    @Test func foodDataRoundTripsAndOlderFilesStillLoad() throws {
+        let day = LocalDate(year: 2026, month: 3, day: 2)
+        var appData = AppData()
+        let item = FoodItem(id: "user-pierogi", name: "pierogi", aliases: ["pierogów"], category: .dishes,
+                            per100: Macros(kcal: 200, protein: 7, carbs: 30, fat: 6),
+                            defaultPortion: Portion(unit: .piece, grams: 40))
+        appData.userFoods = [item]
+        let parsed = ParsedMeal(items: [], unknown: ["coś nowego"], totals: .zero)
+        appData.addMeal(MealEntry(createdAt: Date(timeIntervalSince1970: 1_800_000_000), text: "coś nowego", parsed: parsed),
+                        on: day)
+        appData.addWater(3, to: .morning, on: day)
+        appData.addWater(-5, to: .midday, on: day)
+        appData.setWeight(64.5, on: day)
+        appData.nutritionProfile = NutritionProfile(birthYear: 1990, heightCm: 170, weightKg: 65,
+                                                    activity: .light, deficitKcal: 300)
+        appData.targetsSetting = .manual(Macros(kcal: 1800, protein: 110, carbs: 200, fat: 60))
+
+        let encoded = try AppDataCoding.encode(appData)
+        let decoded = try AppDataCoding.decode(encoded)
+        #expect(decoded == appData)
+        #expect(decoded.water(on: day) == WaterDay(morning: 3, midday: 0, evening: 0))
+        #expect(!AppDataCoding.isFromNewerVersion(encoded))
+
+        // A file written before food existed (schema 1) loads with empty food data.
+        let old = try AppDataCoding.decode(Data(#"{"schemaVersion":1,"periodDays":["2026-03-01"]}"#.utf8))
+        #expect(old.periodDays == [LocalDate(year: 2026, month: 3, day: 1)])
+        #expect(old.meals.isEmpty && old.water.isEmpty && old.weights.isEmpty)
+        #expect(old.nutritionProfile == nil)
+        #expect(old.targetsSetting == .automatic)
+        #expect(!AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":1,"periodDays":[]}"#.utf8)))
+    }
+
+    @Test func waterNeverGoesBelowZeroAndEmptyDaysDisappear() {
+        let day = LocalDate(year: 2026, month: 3, day: 2)
+        var appData = AppData()
+        appData.addWater(1, to: .evening, on: day)
+        appData.addWater(-3, to: .evening, on: day)
+        #expect(appData.water(on: day).total == 0)
+        #expect(appData.water[day] == nil)
+    }
+
+    @Test func removingTheLastMealOfADayRemovesTheDay() {
+        let day = LocalDate(year: 2026, month: 3, day: 2)
+        var appData = AppData()
+        let entry = MealEntry(text: "x", parsed: ParsedMeal(items: [], unknown: ["x"], totals: .zero))
+        appData.addMeal(entry, on: day)
+        appData.removeMeal(id: entry.id, on: day)
+        #expect(appData.meals.isEmpty)
+    }
+
     @Test func recognisesFilesWrittenByANewerVersion() throws {
         #expect(!AppDataCoding.isFromNewerVersion(try AppDataCoding.encode(AppData())))
         #expect(!AppDataCoding.isFromNewerVersion(Data("{}".utf8)))
         #expect(!AppDataCoding.isFromNewerVersion(Data("not json".utf8)))
-        #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":2,"periodDays":[]}"#.utf8)))
-        #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":1,"periodDays":[],"meals":[]}"#.utf8)))
+        #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":3,"periodDays":[]}"#.utf8)))
+        #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":2,"periodDays":[],"recipePlan":[]}"#.utf8)))
     }
 
     @Test func togglingTwiceRemovesTheDay() {

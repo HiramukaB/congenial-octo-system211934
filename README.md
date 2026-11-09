@@ -15,7 +15,9 @@ Cykl, jedzenie, ruch, sen i wnętrze w jednym miejscu, w zgodzie z rytmem cyklu 
 | Cykl: kalendarz okresu, fazy z poziomem pewności, prognoza, spóźnienia, plamienia | gotowe |
 | Zapis danych (plik JSON) z dziennymi kopiami i odtwarzaniem z kopii | gotowe |
 | Ikona aplikacji (`Tools/make_app_icon.py`) | gotowe |
-| Jedzenie, ruch, wnętrze | w budowie |
+| Jedzenie: posiłki wpisywane zwykłym tekstem (polski parser, baza produktów na 100 g, uczenie nowych produktów), bilans dnia z celami z profilu, woda, waga z linią trendu | gotowe |
+| Przepisy dopasowane do fazy, plan tygodnia, zakupy | w budowie |
+| Ruch, wnętrze | w budowie |
 
 ## Struktura
 

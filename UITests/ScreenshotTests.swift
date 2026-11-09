@@ -32,6 +32,12 @@ final class ScreenshotTests: XCTestCase {
             Thread.sleep(forTimeInterval: 2)
             XCTAssertEqual(app.state, .runningForeground, "the app quit on the \(tab) tab")
             saveScreenshot(named: String(format: "%02d-%@", index + 1, tab), in: self)
+            if tab == "food" || tab == "today" {
+                // The lower half of the longer screens.
+                app.swipeUp()
+                Thread.sleep(forTimeInterval: 1)
+                saveScreenshot(named: String(format: "%02d-%@-2", index + 1, tab), in: self)
+            }
             app.terminate()
         }
     }

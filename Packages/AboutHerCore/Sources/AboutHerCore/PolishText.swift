@@ -47,4 +47,24 @@ public enum PolishPlural {
     public static func days(_ count: Int) -> String {
         count == 1 ? "1 dzień" : "\(count) dni"
     }
+
+    /// The form of a noun that goes with `count` – the word only.
+    /// 1 → `one` ("szklanka"); 2–4, 22–24, 102–104 … but not 12–14 → `few` ("szklanki");
+    /// everything else, 0 included → `many` ("szklanek"). Negative numbers use their absolute value.
+    public static func form(_ count: Int, one: String, few: String, many: String) -> String {
+        let n = count.magnitude  // UInt, so Int.min can't overflow
+        if n == 1 {
+            return one
+        }
+        let lastDigit = n % 10
+        let lastTwoDigits = n % 100
+        let endsInTwoToFour = lastDigit >= 2 && lastDigit <= 4
+        let endsInTwelveToFourteen = lastTwoDigits >= 12 && lastTwoDigits <= 14
+        return endsInTwoToFour && !endsInTwelveToFourteen ? few : many
+    }
+
+    /// "1 szklanka", "3 szklanki", "5 szklanek"
+    public static func glasses(_ count: Int) -> String {
+        "\(count) " + form(count, one: "szklanka", few: "szklanki", many: "szklanek")
+    }
 }

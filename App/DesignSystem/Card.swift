@@ -37,6 +37,8 @@ struct Screen<Content: View>: View {
             .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
+        // Scrolling away from a field closes the keyboard, which also saves what she typed.
+        .scrollDismissesKeyboard(.interactively)
         .ambientBackground(tint: tint)
     }
 }

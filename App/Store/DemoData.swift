@@ -1,3 +1,4 @@
+import Foundation
 import AboutHerCore
 
 /// A fictional, fairly regular history for screenshots – never her real data.
@@ -10,6 +11,29 @@ enum DemoData {
                 days.insert(start.adding(days: day))
             }
         }
-        return AppData(periodDays: days)
+        var data = AppData(periodDays: days)
+
+        // A made-up person: not her height, weight or age.
+        data.nutritionProfile = NutritionProfile(birthYear: today.year - 34, heightCm: 168, weightKg: 66,
+                                                 activity: .light, deficitKcal: 250)
+        let weights: [Double] = [66.2, 65.9, 66.1, 65.6, 65.7, 65.2, 65.0, 64.8]
+        for (index, kg) in weights.enumerated() {
+            data.setWeight(kg, on: today.adding(days: (index - weights.count + 1) * 7))
+        }
+
+        let parser = MealParser(catalog: .builtIn)
+        let meals = [
+            "owsianka z bananem i łyżką masła orzechowego",
+            "2 kromki chleba żytniego z twarożkiem i rzodkiewką",
+            "zupa pomidorowa z ryżem",
+        ]
+        for text in meals {
+            data.addMeal(MealEntry(text: text, parsed: parser.parse(text)), on: today)
+        }
+        data.addMeal(MealEntry(text: "jajecznica z trzech jajek i pomidor", parsed: parser.parse("jajecznica z trzech jajek i pomidor")),
+                     on: today.adding(days: -1))
+        data.addWater(2, to: .morning, on: today)
+        data.addWater(2, to: .midday, on: today)
+        return data
     }
 }

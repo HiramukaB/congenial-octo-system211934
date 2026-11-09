@@ -25,6 +25,7 @@ final class AppStore {
     @ObservationIgnored private var readOnlyReason: String?
     @ObservationIgnored private var hasUnsavedChanges = false
     @ObservationIgnored private var pendingSave: Task<Void, Never>?
+    @ObservationIgnored private var parserCache: (foods: [FoodItem], parser: MealParser)?
 
     init(data: AppData, persistence: Persistence?, today: LocalDate = .today()) {
         self.data = data
@@ -55,6 +56,93 @@ final class AppStore {
         guard canEdit() else { return }
         data.togglePeriodDay(date)
         markChanged()
+    }
+
+    // MARK: - Food
+
+    /// The meal parser with her own products; rebuilt only when they change.
+    var mealParser: MealParser {
+        if let cached = parserCache, cached.foods == data.userFoods {
+            return cached.parser
+        }
+        let parser = MealParser(catalog: .builtIn, userFoods: data.userFoods)
+        parserCache = (data.userFoods, parser)
+        return parser
+    }
+
+    /// Logs what she typed for `day`. Returns `false` when nothing was saved.
+    @discardableResult
+    func logMeal(_ text: String, on day: LocalDate) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, day <= today, canEdit() else { return false }
+        data.addMeal(MealEntry(text: trimmed, parsed: mealParser.parse(trimmed)), on: day)
+        markChanged()
+        return true
+    }
+
+    func removeMeal(_ id: UUID, on day: LocalDate) {
+        guard canEdit() else { return }
+        data.removeMeal(id: id, on: day)
+        markChanged()
+    }
+
+    /// Remembers a product she taught the app and counts it in every entry that missed it.
+    func teachFood(_ item: FoodItem) {
+        guard canEdit() else { return }
+        data.teachFood(item, catalog: .builtIn)
+        markChanged()
+    }
+
+    func addWater(_ delta: Int, to slot: WaterDay.Slot, on day: LocalDate) {
+        guard day <= today, canEdit() else { return }
+        data.addWater(delta, to: slot, on: day)
+        markChanged()
+    }
+
+    /// Saves a weigh-in rounded to 0.1 kg. Values outside 25–250 kg are refused (returns `false`).
+    @discardableResult
+    func setWeight(_ kg: Double, on day: LocalDate) -> Bool {
+        guard (25...250).contains(kg), day <= today, canEdit() else { return false }
+        data.setWeight((kg * 10).rounded() / 10, on: day)
+        markChanged()
+        return true
+    }
+
+    func removeWeight(on day: LocalDate) {
+        guard canEdit() else { return }
+        data.setWeight(nil, on: day)
+        markChanged()
+    }
+
+    func saveNutrition(profile: NutritionProfile, targets: TargetsSetting) {
+        guard canEdit() else { return }
+        data.nutritionProfile = profile
+        data.targetsSetting = targets
+        markChanged()
+    }
+
+    /// Her weigh-ins with the smoothed trend line.
+    var weightPoints: [WeightPoint] {
+        WeightTrend.points(data.weights)
+    }
+
+    /// The weight targets are computed from: the trend of her weigh-ins, otherwise the profile weight.
+    var currentWeight: Double? {
+        WeightTrend.trend(on: today, in: weightPoints) ?? data.nutritionProfile?.weightKg
+    }
+
+    /// Targets computed from her profile; `nil` until she fills it in.
+    var computedTargets: TargetResult? {
+        guard let profile = data.nutritionProfile else { return nil }
+        return TargetCalculator.compute(profile: profile, weightKg: currentWeight, year: today.year)
+    }
+
+    /// The daily targets in use: her own numbers, or computed from the profile.
+    var targets: Macros? {
+        switch data.targetsSetting {
+        case .manual(let macros): macros
+        case .automatic: computedTargets?.targets
+        }
     }
 
     /// Called whenever the app becomes active and at midnight.

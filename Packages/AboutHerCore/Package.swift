@@ -1,7 +1,8 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// Logic without any UI: dates, the cycle engine and the data model.
+// Logic without any UI: dates, the cycle engine, food (product catalog, meal parser,
+// targets, weight trend) and the data model.
 // Pure Swift + Foundation, so the tests also run on Linux (CI) and in Docker.
 let package = Package(
     name: "AboutHerCore",
@@ -13,7 +14,7 @@ let package = Package(
         .library(name: "AboutHerCore", targets: ["AboutHerCore"])
     ],
     targets: [
-        .target(name: "AboutHerCore"),
+        .target(name: "AboutHerCore", resources: [.process("Resources")]),
         .testTarget(name: "AboutHerCoreTests", dependencies: ["AboutHerCore"])
     ]
 )

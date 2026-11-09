@@ -31,6 +31,10 @@ struct TodayView: View {
             } else {
                 PastDayCycleCard(info: info, cycleDay: engine.cycleDay(on: date))
             }
+            DaySummaryCard(eaten: store.data.eaten(on: date),
+                           targets: store.targets,
+                           glasses: store.data.water(on: date).total,
+                           onOpenFood: { selectedTab = .food })
             if let phase = guidePhase(info: info, status: status) {
                 PhaseGuideCard(phase: phase)
             }
@@ -252,6 +256,45 @@ struct PastDayCycleCard: View {
                 }
             }
         }
+    }
+}
+
+/// "dzień w skrócie": calories and water at a glance, without opening the food tab.
+struct DaySummaryCard: View {
+    let eaten: Macros
+    let targets: Macros?
+    let glasses: Int
+    let onOpenFood: () -> Void
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("dzień w skrócie").sectionTitle()
+                summaryRow("kalorie", value: kcalText)
+                summaryRow("woda", value: "\(glasses) / \(WaterDay.goalGlasses) szklanek")
+                Button("otwórz jedzenie", action: onOpenFood)
+                    .buttonStyle(LinkButtonStyle())
+            }
+        }
+    }
+
+    private var kcalText: String {
+        let eatenKcal = FoodFormat.whole(eaten.kcal)
+        guard let targets else { return "\(eatenKcal) kcal" }
+        return "\(eatenKcal) / \(FoodFormat.whole(targets.kcal)) kcal"
+    }
+
+    private func summaryRow(_ label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(Palette.text2)
+            Spacer()
+            Text(value)
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(Palette.text)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

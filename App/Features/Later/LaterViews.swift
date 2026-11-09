@@ -25,22 +25,6 @@ struct ComingSoonCard: View {
     }
 }
 
-struct FoodView: View {
-    var body: some View {
-        Screen {
-            Text("jedzenie").screenTitle()
-            ComingSoonCard(
-                intro: "tę część przenoszę z wersji HTML i poprawiam po drodze:",
-                items: [
-                    "dziennik posiłków z bazą polskich produktów liczoną na 100 g",
-                    "przepisy dopasowane do fazy i do tego, co zostało Ci do celu",
-                    "woda, waga z wygładzonym trendem i lista zakupów"
-                ]
-            )
-        }
-    }
-}
-
 struct MovementView: View {
     var body: some View {
         Screen {
