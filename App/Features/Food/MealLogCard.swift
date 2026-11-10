@@ -16,6 +16,9 @@ struct MealLogCard: View {
 
     /// The scroll id of the open field, for `keepEditorInSight`.
     static let editorID = "meal-editor"
+    /// Longer than this (a pasted page), the text is counted only when it is saved, so typing
+    /// never waits for the live preview.
+    static let previewLimit = 1000
 
     /// What the field is writing; nil while it is closed.
     @State private var editing: Editing? = nil
@@ -151,7 +154,11 @@ struct MealLogCard: View {
     /// Live preview of what I understand, while she types.
     @ViewBuilder private var preview: some View {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
+        if trimmed.count > Self.previewLimit {
+            Text(polish: "tak długi tekst policzę dopiero po zapisaniu")
+                .font(.caption)
+                .foregroundStyle(Palette.muted)
+        } else if !trimmed.isEmpty {
             let parsed = store.mealParser.parse(trimmed)
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(parsed.items.enumerated()), id: \.offset) { _, item in
@@ -161,6 +168,12 @@ struct MealLogCard: View {
                 }
                 if !parsed.unknown.isEmpty {
                     Text("nie znam jeszcze: \(parsed.unknown.joined(separator: ", "))")
+                        .font(.caption)
+                        .foregroundStyle(Palette.muted)
+                }
+                if parsed.items.isEmpty && parsed.unknown.isEmpty {
+                    // So far only the meal, a time or who she ate with ("obiad:", "8:30").
+                    Text(polish: "nie widzę tu jeszcze nic do policzenia")
                         .font(.caption)
                         .foregroundStyle(Palette.muted)
                 }
@@ -302,9 +315,17 @@ struct MealRow: View {
                         .foregroundStyle(Palette.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(FoodFormat.macrosLine(entry.totals))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Palette.muted)
+                if entry.items.isEmpty && entry.unknown.isEmpty {
+                    // Only the meal, a time or who she ate with ("obiad", "8:30"): nothing was counted.
+                    Text(polish: "nic tu nie policzyłam – dotknij, żeby dopisać, co zjadłaś")
+                        .font(.caption)
+                        .foregroundStyle(Palette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(FoodFormat.macrosLine(entry.totals))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(Palette.muted)
+                }
             }
             .accessibilityElement(children: .combine)
             if !unknown.isEmpty {
