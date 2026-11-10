@@ -2,74 +2,138 @@ import SwiftUI
 import AboutHerCore
 
 /// "co zjadłaś": tap, type in plain Polish, and it saves itself – no confirm button.
+/// A tap on a logged meal opens it in the same field, in its place, to correct it.
 struct MealLogCard: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
     let day: LocalDate
     /// Opens the sheet that teaches the app an unknown product.
     let onTeach: (String) -> Void
+    /// Opens one of her own products, to correct what she taught the app.
+    let onEditFood: (FoodItem) -> Void
 
+    /// What the field is writing; nil while it is closed.
+    @State private var editing: Editing? = nil
     @State private var draft = ""
-    @State private var isTyping = false
     @FocusState private var isFocused: Bool
+
+    /// A new meal, or a logged one she tapped, and the day it belongs to.
+    struct Editing {
+        /// nil for a new meal.
+        var mealID: UUID?
+        var day: LocalDate
+        /// The meal's text when she opened it; an unchanged text isn't saved again.
+        var originalText: String
+    }
 
     var body: some View {
         let entries = store.data.meals(on: day)
+        let rows = rowsAround(entries)
         Card {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("co zjadłaś").sectionTitle()
+                    Text(title).sectionTitle()
                     Spacer()
-                    if !isTyping {
-                        StarButton(label: "dopisz posiłek", prominent: true, action: startTyping)
+                    if editing == nil {
+                        StarButton(label: "dopisz posiłek", prominent: true, action: startNewMeal)
                     }
                 }
-                if isTyping {
-                    TextField("np. trzy jajka, łyżeczka masła, kromka chleba żytniego", text: $draft, axis: .vertical)
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.text)
-                        .focused($isFocused)
-                        .submitLabel(.done)
-                        .lineLimit(1...5)
-                        .onChange(of: draft) { _, newValue in
-                            // The return key on a multi-line field inserts a newline: treat it as "done".
-                            if newValue.contains("\n") {
-                                draft = newValue.replacingOccurrences(of: "\n", with: " ")
-                                save()
-                            }
-                        }
-                    preview
-                    Text(polish: "zapisze się samo, gdy stukniesz „gotowe” albo przewiniesz ekran")
-                        .font(.caption)
-                        .foregroundStyle(Palette.muted)
+                // The field is one and the same view wherever it opens – above the meals for a new
+                // one, in place of a meal she tapped – so the keyboard stays up from meal to meal.
+                ForEach(rows.before) { entry in
+                    row(entry)
+                }
+                if let editing {
+                    editor(editing)
                 } else if entries.isEmpty {
-                    Button(action: startTyping) {
-                        Text(polish: "tu pojawi się to, co zjesz – dotknij, żeby dopisać")
-                            .bodyText()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                    emptyState
                 }
-                ForEach(entries) { entry in
-                    MealRow(entry: entry, onTeach: onTeach)
-                        .swipeToDelete(label: "usuń posiłek") {
-                            store.removeMeal(entry.id, on: day)
-                        }
+                ForEach(rows.after) { entry in
+                    row(entry)
                 }
             }
         }
+        .onChange(of: draft) { oldValue, newValue in
+            handleLineBreaks(oldValue: oldValue, newValue: newValue)
+        }
         .onChange(of: isFocused) { _, focused in
+            // The keyboard went away (dragged down, another sheet, another tab): she is done.
             if !focused {
-                save()
+                finishEditing()
             }
         }
         .onChange(of: day) {
-            draft = ""
-            isTyping = false
+            // Another day is shown (her switch, midnight, leaving the tab): what she typed is saved
+            // to the day it was typed for.
+            finishEditing(force: true)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // In the background the app may be ended at any time: save the field and the file now.
+            if phase == .background {
+                finishEditing()
+                store.saveNow()
+            }
         }
     }
 
-    /// Live preview of what the parser understands, while she types.
+    // MARK: - Parts
+
+    private var title: String {
+        day == store.today ? "co zjadłaś" : "co zjadłaś · \(PolishDate.dayMonth(day))"
+    }
+
+    private var emptyState: some View {
+        Button(action: startNewMeal) {
+            Text(polish: day == store.today
+                 ? "tu pojawi się to, co zjesz – dotknij, żeby dopisać"
+                 : "nic tu jeszcze nie ma – dotknij, żeby dopisać, co zjadłaś")
+                .bodyText()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func row(_ entry: MealEntry) -> some View {
+        MealRow(entry: entry, ownFoods: ownFoods(in: entry), onTeach: onTeach, onEditFood: onEditFood)
+            .swipeToDelete(label: "usuń posiłek", onTap: { edit(entry) }) {
+                store.removeMeal(entry.id, on: day)
+            }
+    }
+
+    private func editor(_ editing: Editing) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("np. trzy jajka, łyżeczka masła, kromka chleba żytniego", text: $draft, axis: .vertical)
+                .font(.subheadline)
+                .foregroundStyle(Palette.text)
+                .focused($isFocused)
+                .submitLabel(.done)
+                .lineLimit(1...6)
+                .accessibilityIdentifier("meal-field")
+                .onAppear {
+                    // Asked for once more when the field is really there, in case the first request
+                    // came too early.
+                    isFocused = true
+                }
+            preview
+            Text(polish: hint(for: editing))
+                .font(.caption)
+                .foregroundStyle(Palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Palette.accentBackground.opacity(0.6))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
+        }
+    }
+
+    /// Live preview of what I understand, while she types.
     @ViewBuilder private var preview: some View {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
@@ -90,49 +154,205 @@ struct MealLogCard: View {
         }
     }
 
-    private func startTyping() {
-        isTyping = true
+    private func hint(for editing: Editing) -> String {
+        guard editing.mealID != nil else {
+            return "zapiszę to, gdy stukniesz „gotowe” albo schowasz klawiaturę"
+        }
+        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "pusty tekst niczego nie zmieni – posiłek usuniesz, przesuwając go w lewo"
+        }
+        return "zapiszę poprawkę, gdy stukniesz „gotowe” albo schowasz klawiaturę"
+    }
+
+    /// The meals above and below the field. A meal she is correcting is replaced by the field;
+    /// a new meal is written above them all.
+    private func rowsAround(_ entries: [MealEntry]) -> (before: [MealEntry], after: [MealEntry]) {
+        guard let id = editing?.mealID, let index = entries.firstIndex(where: { $0.id == id }) else {
+            return ([], entries)
+        }
+        return (Array(entries[..<index]), Array(entries[(index + 1)...]))
+    }
+
+    /// Her own products in a meal, each once, as they are stored now.
+    private func ownFoods(in entry: MealEntry) -> [FoodItem] {
+        var seen = Set<String>()
+        return entry.items.compactMap { item in
+            guard item.foodID.hasPrefix("user-"), seen.insert(item.foodID).inserted else { return nil }
+            return store.userFood(id: item.foodID)
+        }
+    }
+
+    // MARK: - Editing
+
+    private func startNewMeal() {
+        guard editing == nil else { return }
+        open(Editing(mealID: nil, day: day, originalText: ""), text: "")
+    }
+
+    /// A tap on a logged meal opens it in the field, in its place. What the field held is saved first.
+    private func edit(_ entry: MealEntry) {
+        if editing != nil {
+            guard save(draft) else { return }
+        }
+        open(Editing(mealID: entry.id, day: day, originalText: entry.text), text: entry.text)
+    }
+
+    private func open(_ target: Editing, text: String) {
+        editing = target
+        draft = text
         isFocused = true
     }
 
-    private func save() {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        draft = ""
-        isTyping = false
+    /// Saves the field and closes it: on "gotowe", when the keyboard goes, on another day and when
+    /// the app goes to the background. If her data can't be written right now (the store says why),
+    /// the text stays in the field – except on another day, where the field has to close.
+    private func finishEditing(text: String? = nil, force: Bool = false) {
+        guard editing != nil else { return }
+        if save(text ?? draft) || force {
+            editing = nil
+            draft = ""
+        }
         isFocused = false
-        guard !text.isEmpty else { return }
-        store.logMeal(text, on: day)
+    }
+
+    /// Writes the field to the store. Returns `false` only when the store refused it.
+    private func save(_ text: String) -> Bool {
+        guard let editing else { return true }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // An emptied field changes nothing; a meal is deleted with a swipe.
+        guard !trimmed.isEmpty else { return true }
+        guard let id = editing.mealID else {
+            return store.logMeal(trimmed, on: editing.day)
+        }
+        guard trimmed != editing.originalText else { return true }
+        if store.data.meals(on: editing.day).contains(where: { $0.id == id }) {
+            return store.replaceMeal(id, text: trimmed, on: editing.day)
+        }
+        // The meal isn't there any more: keep her words as a new meal rather than lose them.
+        return store.logMeal(trimmed, on: editing.day)
+    }
+
+    /// The return key of a multi-line field inserts a line break: a single one means "gotowe".
+    /// A pasted list keeps its lines as separate items and stays open, so she can look it over.
+    private func handleLineBreaks(oldValue: String, newValue: String) {
+        guard newValue.contains(where: \.isNewline) else { return }
+        let withoutBreaks = newValue.filter { !$0.isNewline }
+        let isReturnKey = newValue.filter(\.isNewline).count == 1
+            && (withoutBreaks == oldValue
+                // An autocorrection can land together with the return key at the end of the text.
+                || (newValue.last?.isNewline == true && newValue.count - oldValue.count <= 2))
+        if isReturnKey {
+            draft = withoutBreaks
+            finishEditing(text: withoutBreaks)
+        } else {
+            draft = MealLogCard.joiningLines(newValue)
+        }
+    }
+
+    /// "owsianka⏎banan⏎kawa z mlekiem" → "owsianka, banan, kawa z mlekiem": the parser reads each
+    /// comma-separated part as a food of its own. List bullets and stray commas at the ends go.
+    static func joiningLines(_ text: String) -> String {
+        let edges = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ",;•·*-–—"))
+        return text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: edges) }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
     }
 }
 
-/// One logged meal: what she wrote, its values, and the parts the app doesn't know yet.
+/// One logged meal: what she wrote, what I counted, its values, and links to the products I don't
+/// know yet or that she taught me.
 struct MealRow: View {
     let entry: MealEntry
+    /// Her own products in this meal, which she can open to correct.
+    let ownFoods: [FoodItem]
     let onTeach: (String) -> Void
+    let onEditFood: (FoodItem) -> Void
 
     var body: some View {
+        let unknown = MealRow.unique(entry.unknown)
+        let ownLabel = ownFoods.count == 1 ? "Twój produkt:" : "Twoje produkty:"
+        let flow = FlowLayout()
         VStack(alignment: .leading, spacing: 4) {
-            Text(entry.text)
-                .font(.subheadline)
-                .foregroundStyle(Palette.text)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(FoodFormat.macrosLine(entry.totals))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(Palette.muted)
-            if !entry.unknown.isEmpty {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.text)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !entry.items.isEmpty {
+                    // What was counted, so a food I missed or misread shows at a glance.
+                    Text(MealRow.countedLine(entry.items))
+                        .font(.caption)
+                        .foregroundStyle(Palette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(FoodFormat.macrosLine(entry.totals))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Palette.muted)
+            }
+            .accessibilityElement(children: .combine)
+            if !unknown.isEmpty {
+                flow {
                     Text("nie znam jeszcze:")
                         .font(.caption)
                         .foregroundStyle(Palette.muted)
-                    ForEach(entry.unknown, id: \.self) { name in
+                    ForEach(unknown, id: \.self) { name in
                         Button(name) { onTeach(name) }
                             .buttonStyle(LinkButtonStyle(font: .caption.weight(.medium)))
                             .accessibilityHint("dopisz wartości tego produktu")
                     }
                 }
             }
+            if !ownFoods.isEmpty {
+                flow {
+                    Text(ownLabel)
+                        .font(.caption)
+                        .foregroundStyle(Palette.muted)
+                    ForEach(ownFoods) { food in
+                        Button(food.name) { onEditFood(food) }
+                            .buttonStyle(LinkButtonStyle(font: .caption.weight(.medium)))
+                            .accessibilityHint("popraw wartości tego produktu")
+                    }
+                }
+            }
         }
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// What was counted, in short: "jajko × 3 · chleb żytni × 2 · masło · łosoś 150 g".
+    static func countedLine(_ items: [ParsedItem]) -> String {
+        items.map { item in
+            var part = item.foodName
+            if item.unit == nil {
+                part += " \(FoodFormat.whole(item.grams)) g"
+            } else if abs(item.amount - 1) > 0.001 {
+                part += " × " + amountText(item.amount)
+            }
+            if item.isGuess {
+                part += " (?)"
+            }
+            return part
+        }
+        .joined(separator: " · ")
+    }
+
+    /// "3", "1,5", "0,25".
+    private static func amountText(_ value: Double) -> String {
+        let decimals: Int
+        if abs(value - value.rounded()) < 0.001 {
+            decimals = 0
+        } else if abs(value * 10 - (value * 10).rounded()) < 0.01 {
+            decimals = 1
+        } else {
+            decimals = 2
+        }
+        return FoodFormat.number(value, decimals: decimals)
+    }
+
+    /// Each name once, in the order she wrote them.
+    private static func unique(_ names: [String]) -> [String] {
+        var seen = Set<String>()
+        return names.filter { seen.insert($0).inserted }
     }
 }

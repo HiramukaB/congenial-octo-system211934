@@ -80,6 +80,19 @@ final class AppStore {
         return true
     }
 
+    /// Replaces what she wrote for a logged meal and counts it again. The meal keeps its id, its
+    /// time and its place in the day. An empty text changes nothing – a meal is deleted with a
+    /// swipe. Returns `false` when nothing was saved.
+    @discardableResult
+    func replaceMeal(_ id: UUID, text: String, on day: LocalDate) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, canEdit(), data.meals(on: day).contains(where: { $0.id == id }) else { return false }
+        let parsed = mealParser.parse(trimmed)
+        data.updateMeal(id: id, on: day, text: trimmed, parsed: parsed)
+        markChanged()
+        return true
+    }
+
     func removeMeal(_ id: UUID, on day: LocalDate) {
         guard canEdit() else { return }
         data.removeMeal(id: id, on: day)
@@ -87,10 +100,16 @@ final class AppStore {
     }
 
     /// Remembers a product she taught the app and counts it in every entry that missed it.
+    /// Taught again (same id or name), it replaces the earlier one in every meal that used it.
     func teachFood(_ item: FoodItem) {
         guard canEdit() else { return }
         data.teachFood(item, catalog: .builtIn)
         markChanged()
+    }
+
+    /// One of the products she taught the app, as it is stored now.
+    func userFood(id: String) -> FoodItem? {
+        data.userFoods.first { $0.id == id }
     }
 
     func addWater(_ delta: Int, to slot: WaterDay.Slot, on day: LocalDate) {
@@ -114,9 +133,13 @@ final class AppStore {
         markChanged()
     }
 
-    func saveNutrition(profile: NutritionProfile, targets: TargetsSetting) {
+    /// Saves how her daily targets are set. A `nil` profile keeps the stored one, so her own
+    /// targets can be saved without giving any personal data.
+    func saveNutrition(profile: NutritionProfile?, targets: TargetsSetting) {
         guard canEdit() else { return }
-        data.nutritionProfile = profile
+        if let profile {
+            data.nutritionProfile = profile
+        }
         data.targetsSetting = targets
         markChanged()
     }

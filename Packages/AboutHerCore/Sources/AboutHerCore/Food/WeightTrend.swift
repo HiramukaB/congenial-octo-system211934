@@ -50,13 +50,26 @@ public enum WeightTrend {
     }
 
     /// How far the trend moved in the `days` days up to `day` (negative = down):
-    /// `trend(on: day)` − `trend(on: day − days)`. `nil` when there is no weigh-in on or before the start.
+    /// `trend(on: day)` − `trend(on: day − days)`.
+    ///
+    /// `nil` when that number would not mean what it says:
+    /// - no weigh-in falls after the start, `day − days`, up to `day` (after a break in weighing
+    ///   there is no news, which is not "no change");
+    /// - the last weigh-in on or before the start lies more than `startSlackDays` days before
+    ///   it (the change would span far more than `days` days), or there is none at all.
     public static func change(in points: [WeightPoint], overDays days: Int, endingAt day: LocalDate) -> Double? {
-        guard let end = trend(on: day, in: points),
-              let start = trend(on: day.adding(days: -days), in: points)
+        let start = day.adding(days: -days)
+        guard let endPoint = points.last(where: { $0.day <= day }),
+              let startPoint = points.last(where: { $0.day <= start }),
+              endPoint.day > start,
+              startPoint.day.days(to: start) <= startSlackDays
         else { return nil }
-        return end - start
+        return endPoint.trend - startPoint.trend
     }
+
+    /// How long before the start of `change(in:overDays:endingAt:)` its first weigh-in may lie:
+    /// a week, so weekly weigh-ins always qualify.
+    public static let startSlackDays = 7
 
     /// The latest trend minus her very first weigh-in; `nil` with fewer than two weigh-ins.
     public static func changeSinceStart(in points: [WeightPoint]) -> Double? {

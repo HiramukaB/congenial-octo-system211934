@@ -100,3 +100,64 @@ final class StorageTests: XCTestCase {
         return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 }
+
+/// Best effort, with fictional demo data: the food tab while a meal is being typed, and the
+/// "Twoje cele dzienne" sheet. Nothing here can fail the run – a step whose element doesn't show
+/// up is skipped, and so is its screenshot.
+final class FoodScreenshotTests: XCTestCase {
+    @MainActor
+    func testFoodTypingAndTargets() {
+        captureTypingAMeal()
+        captureTargetsSheet()
+    }
+
+    @MainActor
+    private func captureTypingAMeal() {
+        let app = launchFoodTab()
+        defer { app.terminate() }
+        let star = button(labelled: "dopisz posiłek", in: app)
+        guard star.waitForExistence(timeout: 10), star.isHittable else { return }
+        star.tap()
+        let field = app.descendants(matching: .any).matching(identifier: "meal-field").firstMatch
+        guard field.waitForExistence(timeout: 5) else { return }
+        // The app gives the new field the keyboard by itself. Without a visible keyboard (e.g. a
+        // simulator with a hardware keyboard) a tap on the field makes sure it has the focus.
+        if !app.keyboards.firstMatch.waitForExistence(timeout: 3) {
+            guard field.isHittable else { return }
+            field.tap()
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        app.typeText("kurczak ryż brokuł, kawa z mlekiem")
+        Thread.sleep(forTimeInterval: 1.5)
+        saveScreenshot(named: "06-food-typing", in: self)
+    }
+
+    @MainActor
+    private func captureTargetsSheet() {
+        let app = launchFoodTab()
+        defer { app.terminate() }
+        let targets = button(labelled: "Twoje cele dzienne", in: app)
+        guard targets.waitForExistence(timeout: 10), targets.isHittable else { return }
+        targets.tap()
+        _ = app.navigationBars["Twoje cele dzienne"].waitForExistence(timeout: 5)
+        Thread.sleep(forTimeInterval: 1)
+        saveScreenshot(named: "07-food-targets", in: self)
+    }
+
+    @MainActor
+    private func launchFoodTab() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoData", "-stillBackground", "-startTab", "food"]
+        app.launch()
+        _ = app.wait(for: .runningForeground, timeout: 15)
+        // Let the layout settle.
+        Thread.sleep(forTimeInterval: 2)
+        return app
+    }
+
+    /// The first button with this VoiceOver label, so a second match can never make a tap fail.
+    @MainActor
+    private func button(labelled label: String, in app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
+    }
+}

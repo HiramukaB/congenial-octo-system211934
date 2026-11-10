@@ -18,6 +18,8 @@ struct WaterCard: View {
                     Text("\(waterDay.total) / \(goal) szklanek")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(Palette.text2)
+                        // VoiceOver would read the slash; "3 z 8 szklanek" is how it is said.
+                        .accessibilityLabel(Text(verbatim: "\(waterDay.total) z \(goal) szklanek"))
                 }
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {

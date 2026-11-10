@@ -109,5 +109,8 @@ ani danych, jeśli to ten sam Apple ID), a potem w AltStore Refresh All.
 - Zapis danych: plik `Application Support/AboutHer/about-her.json`, kopie w `Kopie/`.
   Dopóki plik nie zostanie odczytany, aplikacja niczego nie zapisuje (np. zaraz po restarcie
   telefonu, przed pierwszym odblokowaniem). Uszkodzony plik jest odkładany na bok, a dane
-  wracają z najnowszej dobrej kopii. Pliku z nowszej wersji (wyższy `schemaVersion` albo
-  nieznane pola) starsza wersja tylko wyświetla i nigdy go nie nadpisuje.
+  wracają z najnowszej dobrej kopii. Plik z nowszej wersji (z wyższym `schemaVersion`, z nieznanym
+  polem na najwyższym poziomie albo poprawny JSON, którego nie da się odczytać, np. przez nową wartość
+  wyliczenia) starsza wersja otwiera tylko do odczytu i nigdy go nie nadpisuje. Nieznanych pól głębiej
+  w pliku nie zauważa, dlatego każde nowe pole i każda nowa wartość wyliczenia, także zagnieżdżone,
+  wymagają podniesienia `schemaVersion`.

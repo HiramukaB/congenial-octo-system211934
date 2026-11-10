@@ -7,6 +7,8 @@ struct TodayView: View {
     /// 0 = today, -1 = yesterday … (only past days can be browsed).
     @State var dayOffset = 0
     @Binding var selectedTab: AppTab
+    /// The day "jedzenie" shows: "otwórz jedzenie" opens the day she is looking at here.
+    @Binding var foodDayOffset: Int
 
     var body: some View {
         let engine = store.cycle
@@ -34,7 +36,10 @@ struct TodayView: View {
             DaySummaryCard(eaten: store.data.eaten(on: date),
                            targets: store.targets,
                            glasses: store.data.water(on: date).total,
-                           onOpenFood: { selectedTab = .food })
+                           onOpenFood: {
+                               foodDayOffset = dayOffset
+                               selectedTab = .food
+                           })
             if let phase = guidePhase(info: info, status: status) {
                 PhaseGuideCard(phase: phase)
             }
@@ -270,21 +275,24 @@ struct DaySummaryCard: View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
                 Text("dzień w skrócie").sectionTitle()
-                summaryRow("kalorie", value: kcalText)
-                summaryRow("woda", value: "\(glasses) / \(WaterDay.goalGlasses) szklanek")
+                summaryRow("kalorie", value: kcalText(joinedBy: " / "), spoken: kcalText(joinedBy: " z "))
+                summaryRow("woda",
+                           value: "\(glasses) / \(WaterDay.goalGlasses) szklanek",
+                           spoken: "\(glasses) z \(WaterDay.goalGlasses) szklanek")
                 Button("otwórz jedzenie", action: onOpenFood)
                     .buttonStyle(LinkButtonStyle())
             }
         }
     }
 
-    private var kcalText: String {
+    /// "1240 / 1800 kcal" on screen; VoiceOver hears "1240 z 1800 kcal" instead of a slash.
+    private func kcalText(joinedBy separator: String) -> String {
         let eatenKcal = FoodFormat.whole(eaten.kcal)
         guard let targets else { return "\(eatenKcal) kcal" }
-        return "\(eatenKcal) / \(FoodFormat.whole(targets.kcal)) kcal"
+        return "\(eatenKcal)\(separator)\(FoodFormat.whole(targets.kcal)) kcal"
     }
 
-    private func summaryRow(_ label: String, value: String) -> some View {
+    private func summaryRow(_ label: String, value: String, spoken: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
                 .font(.subheadline)
@@ -294,7 +302,8 @@ struct DaySummaryCard: View {
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(Palette.text)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: "\(label): \(spoken)"))
     }
 }
 

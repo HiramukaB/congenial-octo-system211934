@@ -79,9 +79,11 @@ public enum TargetAdjustment: String, Codable, Sendable, Hashable, CaseIterable 
     case deficitLimited
     /// Energy was raised to the minimum (1200 kcal or her BMR, at most her TDEE); the deficit is smaller.
     case raisedToMinimum
-    /// Protein went below 1.8 g/kg (never below 1.6) to leave room for carbohydrates.
+    /// Protein went below 1.8 g per kg of the reference weight (never below 1.6) to leave room
+    /// for carbohydrates.
     case proteinLowered
-    /// Fat went below 0.8 g/kg (never below 25 % of the energy) to leave room for carbohydrates.
+    /// Fat went below 0.8 g per kg of the reference weight (never below 25 % of the energy) to
+    /// leave room for carbohydrates.
     case fatLowered
 }
 
@@ -113,23 +115,30 @@ public struct TargetResult: Sendable, Hashable {
 /// - Deficit: what she asked for, kept within 0…20 % of TDEE (`deficitLimited` when capped).
 /// - kcal = TDEE − deficit, but at least max(1200, BMR); when even her TDEE is lower than that,
 ///   kcal = TDEE, so no deficit at all (`raisedToMinimum`; the deficit shrinks to match).
+/// - The per-kilogram parts use a reference weight: her weight, but at most the weight at BMI 25
+///   for her height (25 · h², h in metres). Protein needs follow lean mass rather than total
+///   weight, so a heavier profile isn't asked for 180 g of protein and a low-carbohydrate day.
+///   Energy (the BMR) still uses her real weight.
 /// - Protein 1.8 g/kg; fat max(0.8 g/kg, 25 % of kcal); carbohydrates get the rest.
-/// - Under 100 g of carbohydrates: protein goes down towards 1.6 g/kg (`proteinLowered`), then fat
-///   towards 25 % of kcal (`fatLowered`), each only as far as needed. If that is still not enough,
-///   the result is accepted; carbohydrates never go below 0.
+/// - Under 130 g of carbohydrates (the usual daily minimum): protein goes down towards 1.6 g/kg
+///   (`proteinLowered`), then fat towards 25 % of kcal (`fatLowered`), each only as far as needed.
+///   If that is still not enough, the result is accepted; carbohydrates never go below 0.
 /// - Each target is rounded to a whole number at the end.
 public enum TargetCalculator {
     /// The largest deficit, as a share of TDEE.
     public static let maxDeficitShare = 0.2
     /// kcal are never set below this or her BMR (unless her TDEE is lower still).
     public static let minimumKcal: Double = 1200
+    /// Per kg of the reference weight, like the two below.
     public static let proteinPerKg = 1.8
     public static let minimumProteinPerKg = 1.6
     public static let fatPerKg = 0.8
     /// The least fat, as a share of the kcal target.
     public static let minimumFatShare = 0.25
     /// Grams of carbohydrates that protein and fat make room for, if they can.
-    public static let minimumCarbs: Double = 100
+    public static let minimumCarbs: Double = 130
+    /// The reference weight is at most the weight at this BMI.
+    public static let referenceBMI: Double = 25
 
     /// `weightKg` overrides the profile weight: the app passes her trend weight once she has weigh-ins.
     /// `year` is the current year (her age is the year minus her birth year).
@@ -165,16 +174,21 @@ public enum TargetCalculator {
             adjustments.append(.raisedToMinimum)
         }
 
-        var protein = proteinPerKg * kg
+        // Her weight, but at most the weight at BMI 25 for her height. Written as h · h,
+        // because this file doesn't import Foundation (no `pow`).
+        let heightM = profile.heightCm / 100
+        let referenceKg = Swift.min(kg, referenceBMI * heightM * heightM)
+
+        var protein = proteinPerKg * referenceKg
         let fatFloor = minimumFatShare * kcal / 9
-        var fat = Swift.max(fatPerKg * kg, fatFloor)
+        var fat = Swift.max(fatPerKg * referenceKg, fatFloor)
 
         // Too few carbohydrates left: give up some protein first, then some fat.
         // `missing` is in grams of carbohydrates; a gram of protein makes room for one gram,
         // a gram of fat for 9/4 g.
         var missing = minimumCarbs - carbsLeft(kcal: kcal, protein: protein, fat: fat)
         if missing > 0 {
-            let proteinCut = Swift.min(missing, Swift.max(0, protein - minimumProteinPerKg * kg))
+            let proteinCut = Swift.min(missing, Swift.max(0, protein - minimumProteinPerKg * referenceKg))
             if proteinCut > 0 {
                 protein -= proteinCut
                 missing -= proteinCut

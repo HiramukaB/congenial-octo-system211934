@@ -593,6 +593,24 @@ enum BuiltInMealPhrases {
         typed("szczypta soli", [parsedAs("sol", 1, .teaspoon, 1)]),
         // An unknown dish keeps what it is made of, to be taught once.
         typed("koktajl z banana i szpinaku", [parsedAs("szpinak", 1, .serving, 100)], unknown: ["koktajl z banana"]),
+        // A bowl of flakes is the dry weight in it, not a 350 g bowl of soup.
+        typed("miska płatków owsianych", [parsedAs("platki-owsiane", 1, .bowl, 50)]),
+        // Milk drinks already contain their milk; "owsianym" is oat milk, not oat flakes.
+        typed("latte na owsianym", [parsedAs("latte", 1, .mug, 300)]),
+        typed("cappuccino z mlekiem sojowym", [parsedAs("cappuccino", 1, .mug, 200)]),
+        typed("kawa z napojem owsianym", [parsedAs("kawa-z-mlekiem", 1, .mug, 250)]),
+        typed("herbata z mlekiem", [parsedAs("herbata-z-mlekiem", 1, .mug, 250)]),
+        // Lean meat is counted as eaten; raw meat is a product of its own.
+        typed("200 g surowego kurczaka", [parsedAs("piers-z-kurczaka-surowa", 200, nil, 200)]),
+        typed("kawałek łososia", [parsedAs("losos", 1, .chunk, 125)]),
+        typed("kotlet z piersi kurczaka", [parsedAs("kotlet-z-kurczaka", 1, .piece, 150)]),
+        typed("200 g twarogu chudego", [parsedAs("twarog-chudy", 200, nil, 200)]),
+        // A count of small things counts the things, not servings.
+        typed("kilka chipsów", [parsedAs("chipsy", 3, .piece, 6)]),
+        typed("2 paluszki rybne", [parsedAs("paluszki-rybne", 2, .piece, 50)]),
+        typed("cola bez cukru", [parsedAs("cola-zero", 1, .glass, 250)]),
+        typed("2 łyżki tzatziki", [parsedAs("tzatziki", 2, .tablespoon, 40)]),
+        typed("porcja sernika", [parsedAs("sernik", 1, .serving, 100)]),
     ]
 }
 

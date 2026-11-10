@@ -24,12 +24,14 @@ struct NutritionTests {
     }
 
     @Test func typicalProfile() {
+        // 70 kg at 165 cm is a little over BMI 25, so protein and fat are counted
+        // on the reference weight, 25 · 1.65² = 68.0625 kg.
         let result = TargetCalculator.compute(profile: hypothetical(), year: 2026)
         #expect(result.bmr == 1395.25)
         #expect(result.tdee == 1918.46875)
         #expect(result.appliedDeficit == 300)
         #expect(result.adjustments.isEmpty)
-        #expect(result.targets == Macros(kcal: 1618, protein: 126, carbs: 153, fat: 56))
+        #expect(result.targets == Macros(kcal: 1618, protein: 123, carbs: 160, fat: 54))
     }
 
     @Test func deficitIsCappedAtAFifthOfTDEE() {
@@ -37,7 +39,7 @@ struct NutritionTests {
         #expect(result.adjustments == [.deficitLimited])
         #expect(near(result.appliedDeficit, 383.69375))
         #expect(near(result.appliedDeficit, 0.2 * result.tdee))
-        #expect(result.targets == Macros(kcal: 1535, protein: 126, carbs: 132, fat: 56))
+        #expect(result.targets == Macros(kcal: 1535, protein: 123, carbs: 139, fat: 54))
     }
 
     @Test func smallSedentaryProfileNeverGoesBelowTheFloor() {
@@ -47,8 +49,8 @@ struct NutritionTests {
         let result = TargetCalculator.compute(profile: small, year: 2026)
         #expect(result.bmr == 1076.5)
         #expect(near(result.tdee, 1291.8))
-        #expect(result.adjustments == [.deficitLimited, .raisedToMinimum])
-        #expect(result.targets == Macros(kcal: 1200, protein: 90, carbs: 120, fat: 40))
+        #expect(result.adjustments == [.deficitLimited, .raisedToMinimum, .proteinLowered])
+        #expect(result.targets == Macros(kcal: 1200, protein: 80, carbs: 130, fat: 40))
         #expect(near(result.appliedDeficit, 91.8))
         #expect(result.targets.carbs >= 0)
     }
@@ -58,18 +60,19 @@ struct NutritionTests {
         let result = TargetCalculator.compute(profile: small, year: 2026)
         #expect(near(result.tdee, 1096.8))
         #expect(result.appliedDeficit == 0)
-        #expect(result.adjustments == [.deficitLimited, .raisedToMinimum])
-        #expect(result.targets == Macros(kcal: 1097, protein: 81, carbs: 112, fat: 36))
+        #expect(result.adjustments == [.deficitLimited, .raisedToMinimum, .proteinLowered, .fatLowered])
+        #expect(result.targets == Macros(kcal: 1097, protein: 72, carbs: 130, fat: 32))
     }
 
     @Test func maintenance() {
         let result = TargetCalculator.compute(profile: hypothetical(deficit: 0), year: 2026)
         #expect(result.appliedDeficit == 0)
         #expect(result.adjustments.isEmpty)
-        #expect(result.targets == Macros(kcal: 1918, protein: 126, carbs: 228, fat: 56))
+        #expect(result.targets == Macros(kcal: 1918, protein: 123, carbs: 235, fat: 54))
         // A negative deficit (a surplus) isn't offered; it counts as maintenance.
         #expect(TargetCalculator.compute(profile: hypothetical(deficit: -250), year: 2026) == result)
 
+        // Under BMI 25 her own weight counts: 1.8 × 64 kg of protein.
         let moderate = hypothetical(born: 1996, height: 172, weight: 64, activity: .moderate, deficit: 0)
         let other = TargetCalculator.compute(profile: moderate, year: 2026)
         #expect(other.adjustments.isEmpty)
@@ -77,17 +80,35 @@ struct NutritionTests {
     }
 
     @Test func proteinThenFatMakeRoomForCarbohydrates() {
-        // 1.8 g/kg of protein and 0.8 g/kg of fat would leave 37 g of carbohydrates here.
-        let heavier = hypothetical(born: 1976, height: 160, weight: 100, activity: .sedentary, deficit: 500)
-        let both = TargetCalculator.compute(profile: heavier, year: 2026)
-        #expect(both.adjustments == [.deficitLimited, .raisedToMinimum, .proteinLowered, .fatLowered])
-        #expect(both.targets == Macros(kcal: 1589, protein: 160, carbs: 100, fat: 61))
+        // Sitting most of the day, with a gentle deficit: 1.8 g/kg of protein and 0.8 g/kg of fat
+        // would leave 111 g of carbohydrates here, under the 130 g minimum.
+        let sedentary = hypothetical(activity: .sedentary, deficit: 250)
+        let both = TargetCalculator.compute(profile: sedentary, year: 2026)
+        #expect(both.adjustments == [.proteinLowered, .fatLowered])
+        #expect(both.targets == Macros(kcal: 1424, protein: 109, carbs: 130, fat: 52))
 
         // Only as far as needed: here a little less protein is enough.
-        let active = hypothetical(born: 1976, height: 152, weight: 100, activity: .light, deficit: 300)
-        let proteinOnly = TargetCalculator.compute(profile: active, year: 2026)
+        let heavier = hypothetical(weight: 75, activity: .sedentary, deficit: 250)
+        let proteinOnly = TargetCalculator.compute(profile: heavier, year: 2026)
         #expect(proteinOnly.adjustments == [.proteinLowered])
-        #expect(proteinOnly.targets == Macros(kcal: 1816, protein: 174, carbs: 100, fat: 80))
+        #expect(proteinOnly.targets == Macros(kcal: 1484, protein: 119, carbs: 130, fat: 54))
+    }
+
+    @Test func heavierProfilesCountProteinAndFatOnAReferenceWeight() {
+        // 100 kg at 160 cm: the reference weight is 25 · 1.6² = 64 kg, while energy still follows
+        // the real weight. With 1.8 g per real kilogram this profile used to get 160 g of protein
+        // and only 100 g of carbohydrates.
+        let heavier = hypothetical(born: 1976, height: 160, weight: 100, activity: .sedentary, deficit: 500)
+        let result = TargetCalculator.compute(profile: heavier, year: 2026)
+        #expect(result.bmr == 1589)
+        #expect(result.adjustments == [.deficitLimited, .raisedToMinimum])
+        #expect(result.targets == Macros(kcal: 1589, protein: 115, carbs: 167, fat: 51))
+
+        // 100 kg at 152 cm (a reference weight of 57.76 kg): it used to be 174 g of protein.
+        let active = hypothetical(born: 1976, height: 152, weight: 100, activity: .light, deficit: 300)
+        let other = TargetCalculator.compute(profile: active, year: 2026)
+        #expect(other.adjustments.isEmpty)
+        #expect(other.targets == Macros(kcal: 1816, protein: 104, carbs: 237, fat: 50))
     }
 
     @Test func carbohydratesBelowTheMinimumAreAcceptedButNeverNegative() {
@@ -96,10 +117,17 @@ struct NutritionTests {
         #expect(accepted.adjustments == TargetAdjustment.allCases)
         #expect(accepted.targets == Macros(kcal: 797, protein: 64, carbs: 85, fat: 22))
 
-        // Nonsense input (52 cm) still gives no negative carbohydrates.
-        let nonsense = hypothetical(born: 1900, height: 52, weight: 200, activity: .sedentary, deficit: 1000)
+        // Nonsense input (100 cm, 10 kg) leaves no room even after both cuts: carbohydrates stop at 0.
+        let nonsense = hypothetical(born: 1900, height: 100, weight: 10, activity: .sedentary, deficit: 1000)
         let clamped = TargetCalculator.compute(profile: nonsense, year: 2026)
-        #expect(clamped.targets == Macros(kcal: 1664, protein: 320, carbs: 0, fat: 46))
+        #expect(clamped.adjustments == TargetAdjustment.allCases)
+        #expect(clamped.targets == Macros(kcal: 77, protein: 16, carbs: 0, fat: 2))
+
+        // A nonsense height (52 cm) shrinks the reference weight, not the energy.
+        let shortHeight = hypothetical(born: 1900, height: 52, weight: 200, activity: .sedentary, deficit: 1000)
+        let shrunk = TargetCalculator.compute(profile: shortHeight, year: 2026)
+        #expect(shrunk.adjustments == [.deficitLimited, .raisedToMinimum])
+        #expect(shrunk.targets == Macros(kcal: 1664, protein: 12, carbs: 300, fat: 46))
     }
 
     @Test func trendWeightOverridesTheProfileWeight() {
@@ -141,7 +169,7 @@ struct NutritionTests {
                         for deficit in [0.0, 300, 700, 1200] {
                             let profile = hypothetical(born: born, height: height, weight: weight,
                                                        activity: activity, deficit: deficit)
-                            checkGuardrails(TargetCalculator.compute(profile: profile, year: 2026), weight: weight)
+                            checkGuardrails(TargetCalculator.compute(profile: profile, year: 2026), for: profile)
                         }
                     }
                 }
@@ -149,16 +177,31 @@ struct NutritionTests {
         }
     }
 
-    private func checkGuardrails(_ result: TargetResult, weight: Double) {
+    private func checkGuardrails(_ result: TargetResult, for profile: NutritionProfile) {
         let kcal = result.tdee - result.appliedDeficit
         let energyFloor = Swift.min(Swift.max(1200, result.bmr), result.tdee)
         #expect(kcal >= energyFloor - 1e-9)
         #expect(result.appliedDeficit >= 0)
         #expect(result.appliedDeficit <= 0.2 * result.tdee + 1e-9)
+        // Never more than she asked for.
+        #expect(result.appliedDeficit <= Swift.max(0, profile.deficitKcal) + 1e-9)
         #expect(abs(result.targets.kcal - kcal) <= 0.5 + 1e-9)
         #expect(result.targets.carbs >= 0)
-        #expect(result.targets.protein >= (1.6 * weight).rounded())
-        #expect(result.targets.protein <= (1.8 * weight).rounded())
+
+        // Protein and the per-kilogram fat follow the reference weight: hers, at most the weight at BMI 25.
+        let heightM = profile.heightCm / 100
+        let referenceKg = Swift.min(profile.weightKg, 25 * heightM * heightM)
+        #expect(result.targets.protein >= (1.6 * referenceKg).rounded())
+        #expect(result.targets.protein <= (1.8 * referenceKg).rounded())
+        let fatFloor = 0.25 * kcal / 9
+        #expect(result.targets.fat >= (fatFloor - 1e-9).rounded())
+        #expect(result.targets.fat <= (Swift.max(0.8 * referenceKg, fatFloor) + 1e-9).rounded())
+        // At least 130 g of carbohydrates, unless protein and fat are already as low as they go.
+        if result.targets.carbs < 130 {
+            #expect(result.targets.protein == (1.6 * referenceKg).rounded())
+            #expect(abs(result.targets.fat - fatFloor) <= 0.5 + 1e-9)
+        }
+
         #expect(abs(result.targets.kcalFromMacros - result.targets.kcal) <= 9)
         let inOrder = TargetAdjustment.allCases.filter { result.adjustments.contains($0) }
         #expect(result.adjustments == inOrder)
@@ -262,6 +305,35 @@ struct NutritionTests {
         #expect(WeightTrend.trend(on: firstWeighIn, in: points) == 80)
         #expect(near(WeightTrend.trend(on: midway, in: points), 79.24741505796266))
         #expect(WeightTrend.trend(on: firstWeighIn.adding(days: 400), in: points) == points.last?.trend)
+    }
+
+    @Test func noChangeIsClaimedForAWindowWithoutWeighIns() {
+        // Weekly weigh-ins on days 0–42, then a break.
+        let start = LocalDate(year: 2026, month: 3, day: 2)
+        var weekly: [LocalDate: Double] = [:]
+        for week in 0...6 {
+            weekly[start.adding(days: 7 * week)] = 70 - 0.1 * Double(week)
+        }
+        let points = WeightTrend.points(weekly)
+        // On day 69 the last weigh-in (day 42) is still inside the 4 weeks.
+        #expect(WeightTrend.change(in: points, overDays: 28, endingAt: start.adding(days: 69)) != nil)
+        // From day 70 on there is none: no news, which is not "0,0 kg".
+        #expect(WeightTrend.change(in: points, overDays: 28, endingAt: start.adding(days: 70)) == nil)
+        #expect(WeightTrend.change(in: points, overDays: 28, endingAt: start.adding(days: 91)) == nil)
+    }
+
+    @Test func aChangeNeverSpansMuchMoreThanItsWindow() {
+        let start = LocalDate(year: 2026, month: 3, day: 2)
+        // Only two weigh-ins, 70 days apart: no "last 4 weeks" to tell.
+        let sparse = WeightTrend.points([start: 70, start.adding(days: 70): 67])
+        #expect(WeightTrend.change(in: sparse, overDays: 28, endingAt: start.adding(days: 70)) == nil)
+
+        // The weigh-in a window starts from may lie up to a week before the window's first day.
+        // Weigh-ins on days 0 and 30: a window from day 7 still starts at day 0, one from day 8 doesn't.
+        let twoWeighIns = WeightTrend.points([start: 70, start.adding(days: 30): 69])
+        #expect(WeightTrend.startSlackDays == 7)
+        #expect(near(WeightTrend.change(in: twoWeighIns, overDays: 28, endingAt: start.adding(days: 35)), -0.875))
+        #expect(WeightTrend.change(in: twoWeighIns, overDays: 28, endingAt: start.adding(days: 36)) == nil)
     }
 
     // MARK: - Polish plurals

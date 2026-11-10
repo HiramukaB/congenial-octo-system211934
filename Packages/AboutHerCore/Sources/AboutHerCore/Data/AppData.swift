@@ -3,9 +3,16 @@ import Foundation
 /// Everything she logs. Stored as one JSON file; this same file is the backup format.
 ///
 /// Every field decodes with a default, so files written by older versions keep loading
-/// when new fields are added.
+/// when new fields are added – and every such addition still raises `currentSchemaVersion`.
 public struct AppData: Codable, Sendable, Equatable {
     /// 2: food (meals, taught products, water, weight, profile, targets).
+    ///
+    /// Raise it for every new stored field and every new enum case, nested ones included (in a
+    /// meal, a product, a portion, the profile, the targets …). An older version recognises a
+    /// newer file only by this number, by its top-level keys and by whether it can decode the
+    /// file at all (`AppDataCoding.isFromNewerVersion`); a nested field it doesn't know it would
+    /// drop without a word on its next save. Never remove or rename a field or a case either:
+    /// older files would then read as coming from a newer version and stay read-only.
     public static let currentSchemaVersion = 2
 
     public var schemaVersion: Int
@@ -71,14 +78,46 @@ public struct AppData: Codable, Sendable, Equatable {
         }
     }
 
-    /// Adds or replaces a product she taught the app, then parses again every entry that had
-    /// unrecognised parts, so the new product counts in days already logged.
+    /// Replaces what she typed for a meal and what it was parsed into. The meal keeps its id,
+    /// its time and its place in the day. Does nothing when there is no such meal on `day`.
+    public mutating func updateMeal(id: UUID, on day: LocalDate, text: String, parsed: ParsedMeal) {
+        guard var entries = meals[day], let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[index].update(text: text, parsed: parsed)
+        meals[day] = entries
+    }
+
+    /// Adds a product she taught the app – replacing an earlier one with the same id or name, so
+    /// teaching it again corrects it – then parses again every entry that had unrecognised parts
+    /// or used the replaced product, so the change counts in days already logged too.
+    ///
+    /// Taught again under its name (a new id), the product keeps the earlier one's name and forms
+    /// as aliases, so the meals she logged with them keep counting. Saved under its own id, it is
+    /// an edit of that product: the sheet showed its forms, so they are taken as she left them.
+    /// The product stays where the replaced one was, so which of her products wins a shared
+    /// alias doesn't change.
     public mutating func teachFood(_ item: FoodItem, catalog: FoodCatalog) {
-        userFoods.removeAll { $0.id == item.id }
-        userFoods.append(item)
+        var item = item
+        let name = FoodText.normalized(item.name)
+        let replacedFoods = userFoods.filter { $0.id == item.id || FoodText.normalized($0.name) == name }
+        let replaced = Set(replacedFoods.map(\.id))
+        var forms = Set([name] + item.aliases.map(FoodText.normalized))
+        for earlier in replacedFoods where earlier.id != item.id {
+            for form in [earlier.name] + earlier.aliases {
+                let normalized = FoodText.normalized(form)
+                if !normalized.isEmpty && forms.insert(normalized).inserted {
+                    item.aliases.append(form)
+                }
+            }
+        }
+        let position = userFoods.firstIndex { replaced.contains($0.id) } ?? userFoods.endIndex
+        userFoods.removeAll { replaced.contains($0.id) }
+        userFoods.insert(item, at: Swift.min(position, userFoods.endIndex))
         let parser = MealParser(catalog: catalog, userFoods: userFoods)
-        for (day, entries) in meals where entries.contains(where: { !$0.unknown.isEmpty }) {
-            meals[day] = entries.map { $0.unknown.isEmpty ? $0 : $0.reparsed(with: parser) }
+        func needsParsing(_ entry: MealEntry) -> Bool {
+            !entry.unknown.isEmpty || entry.items.contains { replaced.contains($0.foodID) }
+        }
+        for (day, entries) in meals where entries.contains(where: needsParsing) {
+            meals[day] = entries.map { needsParsing($0) ? $0.reparsed(with: parser) : $0 }
         }
     }
 
@@ -144,15 +183,29 @@ public enum AppDataCoding {
     }
 
     /// True when the file was written by a newer version of the app: a higher schema version,
-    /// or fields this version doesn't know. Such a file must never be saved back by this
-    /// version, because the unknown fields would be lost.
+    /// a top-level field this version doesn't know, or a JSON object this version can't decode
+    /// (say, a new enum value deep inside a meal or a product). Such a file must never be saved
+    /// back by this version, because what it doesn't know would be lost.
+    ///
+    /// The app writes its file atomically, so a well-formed JSON object it can't decode almost
+    /// certainly comes from another version, not from damage: it is opened read-only instead of
+    /// being set aside. Bytes that aren't a JSON object still count as damaged (`false` here).
+    /// Unknown keys deeper in the file can't be seen at all – see `AppData.currentSchemaVersion`.
     public static func isFromNewerVersion(_ raw: Data) -> Bool {
         guard let topLevel = try? JSONDecoder().decode(TopLevelKeys.self, from: raw) else { return false }
         if let version = topLevel.schemaVersion, version > AppData.currentSchemaVersion {
             return true
         }
         let known = Set(AppData.CodingKeys.allCases.map(\.rawValue))
-        return !topLevel.keys.isSubset(of: known)
+        if !topLevel.keys.isSubset(of: known) {
+            return true
+        }
+        do {
+            _ = try decode(raw)
+            return false
+        } catch {
+            return true
+        }
     }
 
     private struct TopLevelKeys: Decodable {
