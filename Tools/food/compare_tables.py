@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Compares the word tables in MealParser.swift (numbers, units, filler, joining, cooking words,
-endings, abbreviations, milk drinks ...) and its constants with the ones in meal_port.py.
+endings, abbreviations, milk drinks, hours, nutrients, add-ins ...) and its constants with the ones in
+meal_port.py, and fails when MealWords declares a table or constant this script does not compare.
   py -3 Tools/food/compare_tables.py"""
 import re, sys, os
 sys.stdout.reconfigure(encoding="utf-8")
@@ -10,6 +11,7 @@ from paths import MEAL_PARSER as SWIFT
 with open(SWIFT, encoding="utf-8") as _f:
     src = _f.read()
 bad = 0
+compared = set()
 def block(name):
     m = re.search(r"static let %s: [^=]+= (?:table\()?\[(.*?)\]" % name, src, re.S)
     return m.group(1)
@@ -23,6 +25,7 @@ def groups(name):
     dups = sorted(set(w for w in seen if seen.count(w) > 1))
     return out, dups
 units, dups = groups("units")
+compared.add("units")
 if dups:
     print("duplicate unit words", dups); bad += 1
 def conv(v):
@@ -34,9 +37,10 @@ su = {w: conv(v) for w, v in units.items()}
 if su != mp.UNITS:
     print("units differ:", set(su.items()) ^ set(mp.UNITS.items())); bad += 1
 nums, dups = groups("numbers")
+compared.add("numbers")
 sn = {w: float(v) for w, v in nums.items()}
 if sn != mp.NUMBERS or dups:
-    print("numbers differ", dups); bad += 1
+    print("numbers differ", dups, set(sn.items()) ^ set(mp.NUMBERS.items())); bad += 1
 def strset(name):
     m = re.search(r"static let %s: Set<(?:String|Character)> = \[(.*?)\]" % name, src, re.S)
     if m is None:
@@ -57,20 +61,32 @@ for name, py in [("times", mp.TIMES), ("filler", mp.FILLER), ("joining", mp.JOIN
                  ("milkDishes", mp.MILK_DISHES), ("splashDrinks", mp.SPLASH_DRINKS),
                  ("singularEndings", mp.SINGULAR_ENDINGS), ("clockWords", mp.CLOCK_WORDS),
                  ("besides", mp.BESIDES), ("instrumentalLetters", mp.INSTRUMENTAL_LETTERS),
-                 ("instrumentalEndings", mp.INSTRUMENTAL_ENDINGS), ("containers", mp.CONTAINERS)]:
+                 ("instrumentalEndings", mp.INSTRUMENTAL_ENDINGS), ("containers", mp.CONTAINERS),
+                 ("hourWords", mp.HOUR_WORDS), ("nutrients", mp.NUTRIENTS), ("proteinFoods", mp.PROTEIN_FOODS),
+                 ("dishAdjectives", mp.DISH_ADJECTIVES), ("forDrinks", mp.FOR_DRINKS), ("cutStems", mp.CUT_STEMS)]:
+    compared.add(name)
     s = strset(name)
     if s != set(py):
         print(name, "differs:", None if s is None else s ^ set(py)); bad += 1
+# The add-ins are the milks and a list of their own.
+m = re.search(r"static let addIns: Set<String> = MealWords\.milks\.union\(\[(.*?)\]\)", src, re.S)
+compared.add("addIns")
+if m is None or (strset("milks") or set()) | set(re.findall(r'"([^"]*)"', m.group(1))) != mp.ADD_INS:
+    print("addIns differs"); bad += 1
 m = re.search(r"static let genitiveFoods: Set<FoodCategory> = \[(.*?)\]", src, re.S)
+compared.add("genitiveFoods")
 if m is None or set(re.findall(r"\.(\w+)", m.group(1))) != mp.GENITIVE_FOODS:
     print("genitiveFoods differs"); bad += 1
 m = re.search(r"static let countedDishes: Set<PortionUnit> = \[(.*?)\]", src, re.S)
+compared.add("countedDishes")
 if m is None or set(re.findall(r"\.(\w+)", m.group(1))) != mp.COUNTED_DISHES:
     print("countedDishes differs"); bad += 1
 m = re.search(r"static let fractionWords: \[String: Double\] = \[(.*?)\]", src, re.S)
+compared.add("fractionWords")
 if m is None or {w: float(v) for w, v in re.findall(r'"(\w+)": ([\d.]+)', m.group(1))} != mp.FRACTION_WORDS:
     print("fractionWords differs"); bad += 1
 m = re.search(r"static let fractions: \[Character: Double\] = \[(.*?)\]\n", src, re.S)
+compared.add("fractions")
 fractions = {}
 for ch, value in re.findall(r'"(.)": ([\d.]+(?: / \d+)?)', m.group(1)):
     a, _, b = value.partition(" / ")
@@ -78,11 +94,19 @@ for ch, value in re.findall(r'"(.)": ([\d.]+(?: / \d+)?)', m.group(1)):
 if fractions != mp.FRACTIONS:
     print("fractions differ"); bad += 1
 for name, py in [("maxAmount", mp.MAX_AMOUNT), ("splashMillilitres", mp.SPLASH_MILLILITRES),
-                 ("maxSeparatedWords", mp.MAX_SEPARATED_WORDS)]:
+                 ("maxSeparatedWords", mp.MAX_SEPARATED_WORDS), ("juicePerFruit", mp.JUICE_PER_FRUIT)]:
+    compared.add(name)
     m = re.search(r"static let %s(?:: \w+)? = ([\d_.]+)" % name, src)
     if m is None or float(m.group(1).replace("_", "")) != float(py):
         print(name, "differs"); bad += 1
 neg = re.search(r'static let negation = "(\w+)"', src).group(1)
+compared.add("negation")
 if neg != mp.NEG:
     print("negation differs"); bad += 1
-print("tables compared, problems:", bad)
+# Every table and constant of MealWords is compared ("splitting" is withWords and softWords together).
+words_enum = src[src.index("private enum MealWords {"):]
+declared = set(re.findall(r"static let (\w+)", words_enum))
+missing = sorted(declared - compared - {"splitting"})
+if missing:
+    print("MealWords declares tables this script does not compare:", missing); bad += 1
+print("tables compared:", len(compared), "problems:", bad)

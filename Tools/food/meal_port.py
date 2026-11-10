@@ -178,7 +178,7 @@ NUMBERS = table([
     ("poltora poltorej", 1.5),
     ("cwierc", 0.25),
     ("jeden jedna jedno jednego jednej jednym", 1.0),
-    ("dwa dwie dwoch dwoma dwom", 2.0),
+    ("dwa dwie dwoch dwoma dwom dwiema", 2.0),
     ("trzy trzech trzema", 3.0),
     ("cztery czterech czterema", 4.0),
     ("piec pieciu piecioma", 5.0),
@@ -187,8 +187,8 @@ NUMBERS = table([
     ("osiem osmiu osmioma", 8.0),
     ("dziewiec dziewieciu dziewiecioma", 9.0),
     ("dziesiec dziesieciu dziesiecioma", 10.0),
-    ("pare paru", 2.0),
-    ("kilka kilku", 3.0),
+    ("pare paru paroma", 2.0),
+    ("kilka kilku kilkoma", 3.0),
 ])
 UNITS = table([
     ("g gr gram gramy gramow grama", ("g", 1.0)),
@@ -206,6 +206,9 @@ UNITS = table([
     ("kromka kromki kromek kromke kromkami kromce kromkach", ("p", "slice")),
     ("plaster plastra plastry plastrow plastrem plastrami plastrze plastrach", ("p", "thinSlice")),
     ("plasterek plasterka plasterki plasterkow plasterkiem plasterkami plasterku plasterkach", ("p", "thinSlice")),
+    ("rozyczka rozyczki rozyczek rozyczke rozyczkami krazek krazka krazki krazkow krazkiem krazkami",
+     ("p", "thinSlice")),
+    ("czastka czastki czastek czastke czastkami", ("p", "thinSlice")),
     ("garsc garsci garscia garstka garstki garstke garscie garsciami garsciach", ("p", "handful")),
     ("sztuka sztuki sztuk sztuke szt galka galki galek galke", ("p", "piece")),
     ("kostka kostki kostek kostke kostce kostkami kosteczka kosteczki kosteczke kosteczek", ("p", "piece")),
@@ -225,7 +228,7 @@ FILLER = {"ok", "okolo", "kcal", "kalorii", "kalorie",
           "podwieczorek", "podwieczorku", "zjadlam", "wypilam", "jadlam", "pilam",
           "pizzerii", "restauracji", "kawiarni", "piekarni", "cukierni", "stolowki", "sklepu", "automatu",
           "dostawy", "costy", "starbucks", "starbucksa", "kfc", "mcdonalds", "mcdonaldsa", "mcdonalda", "biedronki",
-          "lidla", "ikei", "orlenu", "baru", "barze", "mlecznego", "mlecznym",
+          "lidla", "ikei", "orlenu", "baru", "barze", "mlecznego", "mlecznym", "browaru",
           "chlopakiem", "mezem", "kolezanka", "kolezankami", "kolega", "kolegami", "przyjaciolka",
           "przyjaciolkami", "przyjacielem", "przyjaciolmi", "znajomymi", "rodzina", "rodzicami", "mama", "tata",
           "siostra", "bratem", "dziecmi", "corka", "synem", "partnerem", "partnerka", "dziewczynami", "babcia",
@@ -240,7 +243,7 @@ PREPARATION = {"grilla", "grillu", "piekarnika", "patelni", "rusztu", "rozna", "
 MANNER = {"twardo", "miekko", "polmiekko", "parze", "sucho", "surowo", "ostro", "slodko", "goraco", "zimno",
           "cieplo"}
 NEG = "bez"
-FALSE_FRIENDS = {"pora", "wodka", "wodki", "oliwka", "oliwki", "oliwkami"}
+FALSE_FRIENDS = {"pora", "wodka", "wodki", "oliwka", "oliwki", "oliwkami", "protein"}
 ENDINGS = {"a", "u", "y", "i", "e", "o", "em", "om", "ie", "ach", "ami", "ow", "owi", "ka", "ki", "kiem", "kami",
            "iem", "ia", "iu", "ej", "iej", "ego", "emu", "ym", "im", "ymi", "imi", "ych", "ich"}
 STEM_VOWELS = set("aeoyi")
@@ -250,27 +253,38 @@ SEPARATORS = {",", ";", "+", "!", "?", "…"}
 ABBREVIATIONS = {"g", "gr", "dag", "dkg", "kg", "ml", "l", "lyz", "szt", "szkl", "op", "opak", "ok", "np", "tzw",
                  "sr", "sw", "wg", "ew", "m", "in", "itp", "itd", "tj", "dr", "godz"}
 CLOCK_WORDS = {"o", "godz", "godzina", "godzinie"}
+HOUR_WORDS = {"rano", "wieczorem", "h", "sniadanie", "obiad", "kolacja", "lunch"}
 BESIDES = {"tego", "tej", "picia"}
 FRACTION_WORDS = {"czwarta": 4.0, "czwarte": 4.0, "czwartych": 4.0, "trzecia": 3.0, "trzecie": 3.0, "trzecich": 3.0}
 INSTRUMENTAL_LETTERS = {"ą", "Ą"}
 INSTRUMENTAL_ENDINGS = {"em", "ami"}
 COUNTED_DISHES = {"piece", "slice", "chunk"}
 CONTAINERS = {"koktajl", "koktajle", "koktajlu", "koktajlem", "smoothie", "smoothies", "szejk", "szejka", "shake"}
-UNIT_SYMBOLS = {"g", "gr", "dag", "dkg", "kg", "ml", "l"}
+UNIT_SYMBOLS = {"g", "gr", "dag", "dkg", "kg", "ml", "l", "rozyczka", "rozyczki", "rozyczek", "rozyczke",
+                "rozyczkami", "krazek", "krazka", "krazki", "krazkow", "krazkiem", "krazkami", "czastka", "czastki",
+                "czastek", "czastke", "czastkami"}
 ENERGY = {"kcal", "kalorii", "kalorie"}
+NUTRIENTS = {"bialka", "bialko", "tluszczu", "weglowodanow", "blonnika", "cukrow"}
+PROTEIN_FOODS = {"jaj", "jaja", "jajek", "jajka", "z", "serwatkowego", "serwatkowe", "wpc"}
 NAMED_AFTER_NUMBER = {"cm", "sery", "serow", "zboz", "ziaren"}
 ADJECTIVE_ENDINGS = {"owy", "owa", "owe", "ny", "na", "ne", "ski", "ska", "skie", "cki", "cka", "ckie"}
 NOUN_ENDINGS = {"ina", "ine", "iny", "yna", "yne", "yny"}
 ADJECTIVE_FORMS = {"y", "a", "e", "i", "ego", "emu", "ym", "im", "ej", "iej", "ych", "ich", "ymi", "imi"}
 FLAVOURED = {"sos", "zupa", "zupka", "sok", "budyn", "kisiel"}
 GENITIVE_FOODS = {"meat", "fish"}
+DISH_ADJECTIVES = {"schabowy", "mielony", "ruskie"}
+CUT_STEMS = {"przekroj", "pokroj", "rozkroj", "kroj", "przekroil", "pokroil", "rozkroil", "kroil", "przeciet",
+             "rozciet", "przeciel", "rozciel", "zloz"}
 MILKS = {"mleko", "mleko-owsiane", "mleko-sojowe", "mleko-migdalowe"}
 MILK_DISHES = {"latte", "cappuccino", "kawa-z-mlekiem", "herbata-z-mlekiem", "kakao", "budyn", "nalesniki",
                "nalesniki-z-serem", "placuszki", "owsianka", "kasza-manna"}
 SPLASH_DRINKS = {"kawa", "herbata"}
+FOR_DRINKS = {"kawy", "herbaty", "kawki", "herbatki"}
+ADD_INS = MILKS | {"cukier", "slodzik", "miod", "smietana", "sos", "majonez", "ketchup", "cytryna", "maslo"}
 SINGULAR_ENDINGS = {"em", "u"}
 MAX_AMOUNT = 100000.0
 SPLASH_MILLILITRES = 30.0
+JUICE_PER_FRUIT = 80.0
 MAX_SEPARATED_WORDS = 12
 
 
@@ -419,8 +433,24 @@ class MealText:
     def is_word_in(self, k, end, words):
         return k < end and at(self.tokens, k).kind == "word" and self.tokens[k].norm in words
 
+    def is_word_starting(self, k, end, stems):
+        """isWord(_:_:startingWith:): a word that starts with one of `stems` ("przekrojone" with "przekroj")."""
+        if not (k < end and at(self.tokens, k).kind == "word"):
+            return False
+        word = self.tokens[k].norm
+        return any(word.startswith(s) for s in stems)
+
     def is_unit(self, k, end):
         return k < end and at(self.tokens, k).kind == "word" and self.tokens[k].norm in UNITS
+
+    def is_doughnut(self, k):
+        """Whether "pączek", "pączki" is written with "ą": normalized it reads like the unit "paczek", "paczki"
+        (but "z paczką chipsów" is a package)."""
+        token = at(self.tokens, k)
+        if not (token.kind == "word" and UNITS.get(token.norm) == ("p", "package") and token.end - token.start >= 2):
+            return False
+        second = nfc(at(self.chars, token.start + 1))
+        return second == "ą" or second == "Ą"
 
     def is_times(self, k, end):
         return k < end and (at(self.tokens, k).kind == "times" or (self.tokens[k].kind == "word" and self.tokens[k].norm in TIMES))
@@ -472,6 +502,10 @@ class MealText:
                 return None
             if token.clock and not self.is_unit(k + 1, end):
                 return None
+            # "8 rano owsianka", "ok. 13 obiad: zupa", "2 śniadanie: jogurt": an hour or the meal's number.
+            if (token.value <= 24 and token.value == round_half_away(token.value)
+                    and self.is_word_in(k + 1, end, HOUR_WORDS)):
+                return None
             if k + 2 < end and at(tokens, k + 1).kind == "slash" and at(tokens, k + 2).kind == "number":
                 if tokens[k + 2].value == 0:
                     return None
@@ -506,6 +540,10 @@ class MealText:
             value /= FRACTION_WORDS[tokens[nxt].norm]
             nxt += 1
         if self.is_word_in(nxt, end, ENERGY):
+            return None
+        # "skyr 20 g białka": the protein on the label, not an amount ("100 g białka jaj" is one).
+        if (self.is_unit(nxt, end) and UNITS[self.tokens[nxt].norm] == ("g", 1.0)
+                and self.is_word_in(nxt + 1, end, NUTRIENTS) and not self.is_word_in(nxt + 2, end, PROTEIN_FOODS)):
             return None
         if self.is_word(nxt, end, "i") and self.is_word(nxt + 1, end, "pol"):
             return (value + 0.5, nxt + 2)
@@ -605,7 +643,10 @@ class MealText:
 
 
 class AliasWord:
-    def __init__(self, text):
+    def __init__(self, text, descriptive):
+        # An adjective that only describes ("surowy", "maślana"), not a dish's own name ("pomidorowa"):
+        # "surówka" and "maślanka" are no forms of it.
+        self.descriptive = descriptive
         letters = list(text)
         count = len(letters)
         self.text = text
@@ -630,8 +671,8 @@ class AliasWord:
 
 
 class Alias:
-    def __init__(self, words, item, order, singular=False):
-        self.words = [AliasWord(w) for w in words]
+    def __init__(self, words, item, order, singular, single_words):
+        self.words = [AliasWord(w, is_adjective(w) and w not in single_words) for w in words]
         self.item = item
         self.order = order
         self.letters = sum(len(w) for w in words)
@@ -688,7 +729,9 @@ def quality(word, alias, typos):
         return 0
     if alias.length >= 3 and has_ending(word, alias.text):
         return 2
-    if alias.vowel_stem is not None and has_ending(word, alias.vowel_stem, alias.bare):
+    # "surówka" is no form of "surowy", "maślanka" none of "maślana".
+    if (alias.vowel_stem is not None and has_ending(word, alias.vowel_stem, alias.bare)
+            and not (alias.descriptive and word[len(alias.vowel_stem):].startswith("k"))):
         return 2
     if alias.fleeting is not None and has_ending(word, alias.fleeting):
         return 2
@@ -711,6 +754,7 @@ class Analysis:
         self.match = None
         self.quantity_is_decimal = False
         self.quantity_follows_name = False
+        self.quantity_inside_name = False
 
     def copy(self):
         other = Analysis()
@@ -755,10 +799,12 @@ class Parser:
                         keys.append(key)
                         entries[key] = (words, item, is_user)
         aliases = []
+        # One-word names: an adjective that is one ("pomidorowa") names a dish, it does not only describe one.
+        single_words = set(k for k in keys if len(entries[k][0]) == 1)
         for order, key in enumerate(keys):
             words, item, _ = entries[key]
             singular = any(" ".join(MealText.words(s)) == key for s in (item.singular or []))
-            aliases.append(Alias(words, item, order, singular))
+            aliases.append(Alias(words, item, order, singular, single_words))
         self.aliases = aliases
         self.joining_aliases = [a for a in aliases if len(a.words) > 1 and any(is_protectable(w.text) for w in a.words)]
         self.multi_word_aliases = [a for a in aliases if len(a.words) > 1]
@@ -780,10 +826,12 @@ class Parser:
         items, unknown = [], []
         start = 0
         n = len(meal.tokens)
+        # "kawa z cukrem, z mlekiem": the dish the next fragment may go on with.
+        carried = None
         for k in range(0, n + 1):
             if k == n or meal.tokens[k].kind == "separator":
                 if start < k:
-                    self.parse_chunk(meal, (start, k), items, unknown)
+                    carried = self.parse_chunk(meal, (start, k), carried, items, unknown)
                 start = k + 1
         totals = (0.0, 0.0, 0.0, 0.0)
         for it in items:
@@ -798,16 +846,24 @@ class Parser:
 
     # MARK: - Segments
 
-    def parse_chunk(self, meal, chunk, items, unknown):
+    def parse_chunk(self, meal, chunk, carried, items, unknown):
+        """Returns the fragment's dish, which the next fragment may go on with."""
         protected = self.protected_tokens(meal, chunk)
         # One dish and what came with it, which a group after "i" may carry on: "kawa z cukrem i mlekiem".
         previous = None
         first_item = None
+        # "kawa z cukrem, z mlekiem": a fragment may go on with the dish of the one before.
+        if carried is not None and self.goes_on(meal, chunk):
+            first_item = carried
         drops_first = False
         with_list = False
+        # "kawa bez cukru i mleka": the group before ended under "bez".
+        negated_before = False
         for group in meal.split(chunk, JOINING, protected):
             parts = self.separated(meal, meal.split(group, WITH | ON, protected), protected)
-            continues = first_item is not None and with_list and self.carries_on(meal, group)
+            # "kawa bez cukru i z mlekiem": a group that starts with "z" carries the dish on too.
+            continues = (first_item is not None and (with_list or meal.is_word_in(group[0], group[1], WITH))
+                         and self.carries_on(meal, group))
             if not continues:
                 if drops_first and first_item is not None:
                     at(items, first_item.index)  # Swift's remove(at:) traps outside the array
@@ -816,6 +872,8 @@ class Parser:
                 first_item = None
                 drops_first = False
                 with_list = False
+            # Whether this group was only an add-in left out under the "bez" before it.
+            left_out = False
             i = 0
             while i < len(parts):
                 part = parts[i]
@@ -838,12 +896,37 @@ class Parser:
                     previous = None
                     i += 1
                     continue
+                # "pizza z szynką na pół z mężem": shared, so half of the dish and of what came with it
+                # ("pół na pół" and "przekrojone na pół" are no share).
+                share = head.quantity
+                dish = first_item
+                if (soft and head.match is None and not head.name_tokens and head.unit is None
+                        and share is not None and 0 < share < 1 and dish is not None
+                        and not Parser.is_no_share(meal, part)):
+                    for index in range(len(items)):
+                        if index < dish.index:
+                            continue
+                        food = self.product(at(items, index).food_id)
+                        if food is None:
+                            continue
+                        items[index].amount *= share
+                        items[index].grams *= share
+                        items[index].macros = food.macros(items[index].grams)
+                    previous = None
+                    i += 1
+                    continue
                 if not head.name_tokens:
                     i += 1
                     continue
                 if head.match is not None:
                     match = head.match
                     analysis = head
+                    # "kawa bez cukru i mleka": an add-in after "bez … i" was left out too.
+                    if (negated_before and len(parts) == 1 and analysis.quantity is None and analysis.unit is None
+                            and match.quality == 2 and match.alias.item.id in ADD_INS):
+                        left_out = True
+                        i += 1
+                        continue
                     # "pierś z kurczka", "pomidorwa z ryzem": a typo in the dish's own name, not a second food.
                     earliest = first_item
                     if (earliest is not None and (match.quality == 1 or earliest.match.quality == 1)
@@ -860,6 +943,17 @@ class Parser:
                         analysis.unit = None
                         analysis.quantity_is_decimal = False
                         analysis.quantity_follows_name = False
+                    # "mleko do kawy": a splash, not a glass.
+                    if (analysis.quantity is None and analysis.unit is None and match.alias.item.id in MILKS
+                            and any(meal.is_word(k, part[1], "do") and meal.is_word_in(k + 1, part[1], FOR_DRINKS)
+                                    for k in rng(part[0], part[1]))):
+                        splash = analysis.copy()
+                        splash.quantity = SPLASH_MILLILITRES
+                        splash.unit = ("g", 1.0)
+                        items.append(self.make_item(meal, part, splash, match))
+                        previous = None
+                        i += 1
+                        continue
                     dish = first_item
                     if (dish is not None and analysis.quantity is None and analysis.unit is None
                             and match.alias.item.id in MILKS):
@@ -911,7 +1005,15 @@ class Parser:
                         break
                     following = self.analyze(meal, parts[j], protected, True)
                     if following.quantity is not None or following.unit is not None:
-                        break
+                        # "pyzy z mięsem 4 sztuki", "pyzy z mięsem 1 porcja": a count after what came with an unknown
+                        # dish counts the dish, unless that is counted in pieces itself ("… z jajkami 2 sztuki").
+                        is_count = (following.unit is None or following.unit == ("p", "piece")
+                                    or following.unit == ("p", "serving"))
+                        counts_dish = (following.quantity is not None and following.quantity_follows_name and is_count
+                                       and (following.match is None
+                                            or following.match.alias.item.default[0] != "piece"))
+                        if not counts_dish:
+                            break
                     if following.name_tokens:
                         last = parts[j][1]
                     j += 1
@@ -920,9 +1022,38 @@ class Parser:
                     unknown.append(name)
                 previous = None
                 i = j
+            # "kawa bez cukru i mleka": the group ended under "bez".
+            if parts:
+                last = parts[-1]
+                negated_before = left_out or any(meal.is_word(k, last[1], NEG) and k not in protected
+                                                 for k in rng(last[0], last[1]))
         if drops_first and first_item is not None:
             at(items, first_item.index)  # Swift's remove(at:) traps outside the array
             del items[first_item.index]
+            return None
+        return first_item
+
+    def goes_on(self, meal, chunk):
+        """Whether a fragment goes on with the dish of the one before: it starts with "z" and an amount ("jajecznica,
+        z 3 jajek") or a food in the form it takes after "z" ("kawa z cukrem, z mlekiem"), not with a name or a dish
+        of its own ("Z Kasią kawa", "z pizza")."""
+        if not meal.is_word_in(chunk[0], chunk[1], WITH):
+            return False
+        for k in rng(chunk[0] + 1, chunk[1]):
+            token = at(meal.tokens, k)
+            if token.is_quantity:
+                return True
+            if token.kind != "word":
+                continue
+            word = token.norm
+            if word in UNITS:
+                return True
+            if word in FILLER:
+                continue
+            instrumental = (nfc(at(meal.chars, token.end - 1)) in INSTRUMENTAL_LETTERS
+                            or any(word.endswith(e) for e in INSTRUMENTAL_ENDINGS))
+            return instrumental and self.best_match([word], False) is not None
+        return False
 
     def carries_on(self, meal, group):
         """Whether a group after "i" carries on what came with the dish: "kawa z cukrem i mlekiem" (the form
@@ -995,6 +1126,15 @@ class Parser:
     @staticmethod
     def first_word(meal, earlier):
         return meal.tokens[at(earlier.analysis.name_tokens, earlier.match.position)].norm
+
+    @staticmethod
+    def is_no_share(meal, part):
+        """Whether the word before "na" makes "na pół" no share: "pół na pół" is half and half,
+        "przekrojone na pół" only cut."""
+        if part[0] < 2:
+            return False
+        k = part[0] - 2
+        return meal.is_word(k, part[0], "pol") or meal.is_word_starting(k, part[0], CUT_STEMS)
 
     @staticmethod
     def is_soft(meal, parts, index):
@@ -1122,8 +1262,11 @@ class Parser:
         word = at(meal.tokens, k).norm
         if word in NAMED_AFTER_NUMBER and k > 0 and meal.tokens[k - 1].is_quantity:
             return None
+        # "rosół schabowy", "zupa pomidorowa mielony": after a dish, a dish named by an adjective is a second food.
+        names_dish = word in DISH_ADJECTIVES and head.alias.item.category == "dishes"
         other = self.best_match([word], False)
-        if other is None or other.alias.item.id == head.alias.item.id or self.is_modifier(word):
+        if (other is None or other.alias.item.id == head.alias.item.id
+                or (self.is_modifier(word) and not names_dish)):
             return None
         return other
 
@@ -1153,7 +1296,18 @@ class Parser:
     def cut(self, meal, part, k, start, plain_second, protected):
         if start == k:
             return k
-        second = self.analyze(meal, (k, part[1]), protected, False)
+        # "2 jajka 4 kromki chleba 2 plastry sera": an amount with a food after it is that food's,
+        # so the second food is read only up to it.
+        second_end = part[1]
+        for m in rng(k + 1, part[1]):
+            found = meal.quantity(m, part[1])
+            if found is None:
+                continue
+            nxt = found[1] + 1 if meal.is_unit(found[1], part[1]) else found[1]
+            if meal.has_name_word((nxt, part[1])):
+                second_end = m
+            break
+        second = self.analyze(meal, (k, second_end), protected, False)
         first = self.analyze(meal, (part[0], start), protected, False)
         if second.quantity is not None or (first.quantity is None and plain_second):
             return k
@@ -1166,6 +1320,7 @@ class Parser:
         end = part[1]
         used = set()
         unit_token = None
+        quantity_token = None
         q = part[0]
         while q < end:
             found = meal.quantity(q, end)
@@ -1178,7 +1333,8 @@ class Parser:
             value, after = found
             is_decimal = at(meal.tokens, q).kind == "number" and after == q + 1 and value != round_half_away(value)
             used.update(rng(q, after))
-            if meal.is_unit(after, end):
+            # "2 pączki" is a count of doughnuts, not of packages.
+            if meal.is_unit(after, end) and not meal.is_doughnut(after):
                 unit_token = after
                 after += 1
             if meal.is_times(after, end) and after + 1 < end:
@@ -1188,9 +1344,10 @@ class Parser:
                     value *= second[0]
                     is_decimal = False
                     after = second[1]
-                    if meal.is_unit(after, end):
+                    if meal.is_unit(after, end) and not meal.is_doughnut(after):
                         unit_token = after
             if is_finite(value) and value <= MAX_AMOUNT:
+                quantity_token = q
                 result.quantity = value
                 result.quantity_is_decimal = is_decimal
                 result.quantity_follows_name = meal.has_name_word((part[0], q))
@@ -1212,7 +1369,7 @@ class Parser:
                 continue
             if is_joining(word) and k not in protected:
                 continue
-            if word in UNITS:
+            if word in UNITS and not meal.is_doughnut(k):
                 unit_words.append(k)
                 continue
             names.append(k)
@@ -1224,7 +1381,15 @@ class Parser:
             result.unit = UNITS[meal.tokens[loose[0]].norm]
         if names:
             result.name_tokens = names
-            result.match = self.best_match([meal.tokens[k].norm for k in names], typos)
+            # "kawa z Kasią": a capitalised word right after another word is a name, never a typo of a food.
+            is_name = any(k > 0 and at(meal.tokens, k - 1).kind == "word"
+                          and at(meal.chars, meal.tokens[k].start).isupper() for k in names)
+            result.match = self.best_match([meal.tokens[k].norm for k in names], typos and not is_name)
+            # "sok z 4 pomarańczy": the count stands inside the name.
+            match = result.match
+            if quantity_token is not None and match is not None and len(match.alias.words) > 1:
+                result.quantity_inside_name = (at(names, match.position) < quantity_token
+                                               < at(names, match.position + len(match.alias.words) - 1))
         elif unit_words:
             match = self.best_match([meal.tokens[k].norm for k in unit_words], False)
             if match is not None:
@@ -1256,6 +1421,11 @@ class Parser:
                 amount = count
                 unit = None
                 grams = count
+            elif count is not None and analysis.quantity_inside_name and item.category == "drinks":
+                # "sok z 4 pomarańczy": the juice of four oranges, not four glasses.
+                amount = count * JUICE_PER_FRUIT
+                unit = None
+                grams = amount
             elif count is not None:
                 portion = Parser.counted_portion(item)
                 amount = count
@@ -1298,6 +1468,13 @@ class Parser:
                         return (pu, pg)
                     break
         return item.default
+
+    def product(self, id):
+        """The product an item was made from (an item always has one)."""
+        for alias in self.aliases:
+            if alias.item.id == id:
+                return alias.item
+        return None
 
     # MARK: - Matching
 

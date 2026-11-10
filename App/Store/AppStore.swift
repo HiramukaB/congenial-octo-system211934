@@ -101,10 +101,13 @@ final class AppStore {
 
     /// Remembers a product she taught the app and counts it in every entry that missed it.
     /// Taught again (same id or name), it replaces the earlier one in every meal that used it.
-    func teachFood(_ item: FoodItem) {
-        guard canEdit() else { return }
+    /// Returns `false` when nothing was saved.
+    @discardableResult
+    func teachFood(_ item: FoodItem) -> Bool {
+        guard canEdit() else { return false }
         data.teachFood(item, catalog: .builtIn)
         markChanged()
+        return true
     }
 
     /// One of the products she taught the app, as it is stored now.
@@ -134,14 +137,20 @@ final class AppStore {
     }
 
     /// Saves how her daily targets are set. A `nil` profile keeps the stored one, so her own
-    /// targets can be saved without giving any personal data.
-    func saveNutrition(profile: NutritionProfile?, targets: TargetsSetting) {
-        guard canEdit() else { return }
+    /// targets can be saved without giving any personal data – unless `clearsProfile` says she
+    /// emptied every field about herself; then the stored one goes too. Returns `false` when
+    /// nothing was saved.
+    @discardableResult
+    func saveNutrition(profile: NutritionProfile?, targets: TargetsSetting, clearsProfile: Bool = false) -> Bool {
+        guard canEdit() else { return false }
         if let profile {
             data.nutritionProfile = profile
+        } else if clearsProfile {
+            data.nutritionProfile = nil
         }
         data.targetsSetting = targets
         markChanged()
+        return true
     }
 
     /// Her weigh-ins with the smoothed trend line.

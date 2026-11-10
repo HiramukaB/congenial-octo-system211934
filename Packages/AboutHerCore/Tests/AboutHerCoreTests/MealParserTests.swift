@@ -582,6 +582,104 @@ enum MealPhrases {
         typed("2 sztuki chleba", [parsedAs("chleb", 2, .piece, 70)]),
     ]
 
+    /// An hour before the meal's name ("8 rano", "ok. 13 obiad") and the protein on a label ("10 g białka")
+    /// are no amounts; "z dwiema", "z kilkoma" are.
+    static let hoursAndLabels: [MealPhrase] = [
+        typed("8 rano owsianka", [parsedAs("owsianka", 1, .bowl, 300)]),
+        typed("około 8 śniadanie: owsianka", [parsedAs("owsianka", 1, .bowl, 300)]),
+        typed("ok. 13 obiad: zupa pomidorowa", [parsedAs("zupa-pomidorowa", 1, .serving, 300)]),
+        typed("2 śniadanie: jogurt", [parsedAs("jogurt", 1, .package, 150)]),
+        typed("8 rano: 2 jajka", [parsedAs("jajko", 2, .piece, 110)]),
+        typed("koło 19 kolacja: 2 kromki chleba", [parsedAs("chleb", 2, .slice, 70)]),
+        // A count before the meal's name stays a count.
+        typed("3 jajka na obiad", [parsedAs("jajko", 3, .piece, 165)]),
+        typed("jogurt 10 g białka", [parsedAs("jogurt", 1, .package, 150)]),
+        typed("jogurt 10 g białka 150 g", [parsedAs("jogurt", 150, nil, 150)]),
+        typed("kawa z 5 g cukru", [parsedAs("kawa", 1, .mug, 250), parsedAs("cukier", 5, nil, 5)]),
+        typed("owsianka z dwiema łyżkami masła orzechowego", [
+              parsedAs("owsianka", 1, .bowl, 300),
+              parsedAs("maslo-orzechowe", 2, .tablespoon, 32)
+             ]),
+        typed("jajecznica z kilkoma jajkami", [parsedAs("jajko", 3, .piece, 165)], unknown: ["jajecznica"]),
+    ]
+
+    /// A count after what came with an unknown dish stays with that dish, one to teach; foods typed without
+    /// commas keep their own amounts; a segment is a small piece.
+    static let countsAndAmounts: [MealPhrase] = [
+        typed("pyzy z mięsem 4 sztuki", [], unknown: ["pyzy z mięsem"]),
+        typed("pyzy z mięsem 4", [], unknown: ["pyzy z mięsem"]),
+        typed("pyzy z mięsem 1 porcja", [], unknown: ["pyzy z mięsem"]),
+        // Counted in pieces itself, it keeps the count.
+        typed("szakszuka z jajkami 2 sztuki", [parsedAs("jajko", 2, .piece, 110)], unknown: ["szakszuka"]),
+        typed("2 jajka 4 kromki chleba 2 plastry sera", [
+              parsedAs("jajko", 2, .piece, 110),
+              parsedAs("chleb", 4, .slice, 140),
+              parsedAs("ser-zolty", 2, .thinSlice, 30)
+             ]),
+        typed("200 g twarogu 2 łyżki jogurtu 1 łyżeczka miodu", [
+              parsedAs("twarog", 200, nil, 200),
+              parsedAs("jogurt", 2, .tablespoon, 40),
+              parsedAs("miod", 1, .teaspoon, 8)
+             ]),
+        typed("jajka 2 kromki chleba 100 g sera", [
+              parsedAs("jajko", 1, .piece, 55),
+              parsedAs("chleb", 2, .slice, 70),
+              parsedAs("ser-zolty", 100, nil, 100)
+             ]),
+        typed("2 jajka 4 kromki chleba", [parsedAs("jajko", 2, .piece, 110), parsedAs("chleb", 4, .slice, 140)]),
+        typed("kurczak 150 g ryż 100 g", [
+              parsedAs("piers-z-kurczaka", 150, nil, 150),
+              parsedAs("ryz", 100, nil, 100)
+             ]),
+        typed("2 cząstki melona", [parsedAs("melon", 2, .thinSlice, 30)]),
+    ]
+
+    /// After "bez … i" the add-in was left out too, "na pół" is half of the dish (not when it was only cut),
+    /// "pączki" are doughnuts, a name after "z" is no typo of a food and milk for the coffee is a splash, also
+    /// in a fragment of its own after a comma.
+    static let leftOutAndShared: [MealPhrase] = [
+        typed("kawa bez cukru i mleka", [parsedAs("kawa", 1, .mug, 250)]),
+        typed("herbata bez cukru i mleka", [parsedAs("herbata", 1, .mug, 250)]),
+        typed("kawa bez mleka i cukru", [parsedAs("kawa", 1, .mug, 250)]),
+        typed("kawa bez cukru i mleka i miodu", [parsedAs("kawa", 1, .mug, 250)]),
+        // Another food, or milk named as it is, was eaten.
+        typed("kawa bez cukru i jabłko", [parsedAs("kawa", 1, .mug, 250), parsedAs("jablko", 1, .piece, 180)]),
+        typed("kawa bez cukru i mleko", [parsedAs("kawa", 1, .mug, 250), parsedAs("mleko", 1, .glass, 250)]),
+        typed("kawa bez cukru i z mlekiem", [parsedAs("kawa", 1, .mug, 250), parsedAs("mleko", 30, nil, 30)]),
+        typed("mleko do kawy", [parsedAs("mleko", 30, nil, 30)]),
+        typed("50 ml mleka do kawy", [parsedAs("mleko", 50, nil, 50)]),
+        typed("kawa z cukrem, z mlekiem", [
+              parsedAs("kawa", 1, .mug, 250),
+              parsedAs("cukier", 1, .teaspoon, 5),
+              parsedAs("mleko", 30, nil, 30)
+             ]),
+        typed("owsianka, z mlekiem", [parsedAs("owsianka", 1, .bowl, 300)]),
+        // After a name the fragment has a dish of its own.
+        typed("owsianka. Z Kasią kawa z cukrem i mlekiem", [
+              parsedAs("owsianka", 1, .bowl, 300),
+              parsedAs("kawa", 1, .mug, 250),
+              parsedAs("cukier", 1, .teaspoon, 5),
+              parsedAs("mleko", 30, nil, 30)
+             ]),
+        typed("kawałek ciasta na pół z mężem", [parsedAs("ciasto", 0.5, .chunk, 40)]),
+        typed("2 kawałki ciasta na pół", [parsedAs("ciasto", 1, .chunk, 80)]),
+        typed("owsianka z borówkami na pół", [
+              parsedAs("owsianka", 0.5, .bowl, 150),
+              parsedAs("borowki", 0.5, .handful, 20)
+             ]),
+        // "pół na pół" is half and half, not a share.
+        typed("kawa pół na pół z mlekiem", [parsedAs("kawa", 0.5, .mug, 125), parsedAs("mleko", 30, nil, 30)]),
+        typed("2 jajka przekrojone na pół", [parsedAs("jajko", 2, .piece, 110)]),
+        typed("2 duże pączki", [parsedAs("paczek", 2, .piece, 140)]),
+        typed("pączek kawa", [parsedAs("paczek", 1, .piece, 70), parsedAs("kawa", 1, .mug, 250)]),
+        typed("kawa pączek", [parsedAs("kawa", 1, .mug, 250), parsedAs("paczek", 1, .piece, 70)]),
+        typed("2 x 3 pączki", [parsedAs("paczek", 6, .piece, 420)]),
+        typed("kawa z Kasią", [parsedAs("kawa", 1, .mug, 250)], unknown: ["Kasią"]),
+        // A capital letter that starts a sentence or a line of a list is no name.
+        typed("kawa. Bannan", [parsedAs("kawa", 1, .mug, 250), parsedAs("banan", 1, .piece, 120, guess: true)]),
+        typed("- Bannan", [parsedAs("banan", 1, .piece, 120, guess: true)]),
+    ]
+
     static let cleanedNames: [CleanedNameCase] = [
         CleanedNameCase(fragment: "6 pierogów", name: "pierogów"),
         CleanedNameCase(fragment: "2 łyżki sosu sojowego", name: "sosu sojowego"),
@@ -692,6 +790,21 @@ struct MealParserTests {
 
     @Test("What comes after the dish: a count, milk after i, do tego, o 8", arguments: MealPhrases.afterTheDish)
     func afterTheDish(_ expected: MealPhrase) {
+        expectParse(expected, with: parser)
+    }
+
+    @Test("Hours, labels and number words after z", arguments: MealPhrases.hoursAndLabels)
+    func hoursAndLabels(_ expected: MealPhrase) {
+        expectParse(expected, with: parser)
+    }
+
+    @Test("A count after an unknown dish, amounts without commas", arguments: MealPhrases.countsAndAmounts)
+    func countsAndAmounts(_ expected: MealPhrase) {
+        expectParse(expected, with: parser)
+    }
+
+    @Test("Left out after bez, na pół, pączki, names, milk for coffee", arguments: MealPhrases.leftOutAndShared)
+    func leftOutAndShared(_ expected: MealPhrase) {
         expectParse(expected, with: parser)
     }
 
@@ -1067,6 +1180,168 @@ enum BuiltInMealPhrases {
         typed("kompot z truskawek", [parsedAs("kompot", 1, .glass, 250)]),
         typed("jogurt z kakao", [parsedAs("jogurt-naturalny", 1, .package, 150)]),
     ]
+
+    /// Portions and names from the parser review: a bowl of a snack, florets and segments, patties, flavours,
+    /// the juice of a few fruits, labels, shares and words that only look like a food.
+    static let portionsAndNames: [MealPhrase] = [
+        // "protein" on a label is no protein powder, "z browaru" says where the beer came from.
+        typed("mleko protein 500 ml", [parsedAs("mleko", 500, nil, 500)]),
+        typed("jogurt protein 150 g", [parsedAs("jogurt-naturalny", 150, nil, 150)]),
+        typed("pudding high protein 200g", [parsedAs("budyn", 200, nil, 200)]),
+        typed("piwo z browaru", [parsedAs("piwo", 1, .can, 500)]),
+        typed("browar", [parsedAs("piwo", 1, .can, 500)]),
+        // "proteina" is the powder.
+        typed("owsianka z proteiną", [
+              parsedAs("owsianka", 1, .bowl, 300),
+              parsedAs("odzywka-bialkowa", 1, .serving, 30)
+             ]),
+        typed("30 g proteiny", [parsedAs("odzywka-bialkowa", 30, nil, 30)]),
+        // An hour before the meal's name is no amount.
+        typed("ok. 13 obiad: zupa pomidorowa i schabowy", [
+              parsedAs("zupa-pomidorowa", 1, .serving, 350),
+              parsedAs("kotlet-schabowy", 1, .piece, 150)
+             ]),
+        typed("koło 19 kolacja: 2 kanapki", [parsedAs("chleb", 2, .slice, 70)]),
+        typed("8.30 owsianka", [parsedAs("owsianka", 1, .bowl, 300)]),
+        // Florets, rings and segments are small pieces; with no number they are the usual serving.
+        typed("5 różyczek kalafiora", [parsedAs("kalafior", 5, .thinSlice, 75)]),
+        typed("2 krążki ananasa", [parsedAs("ananas", 2, .thinSlice, 100)]),
+        typed("4 cząstki pomarańczy", [parsedAs("pomarancza", 4, .thinSlice, 60)]),
+        typed("różyczki brokuła", [parsedAs("brokul", 1, .serving, 150)]),
+        typed("3 plastry ananasa", [parsedAs("ananas", 3, .thinSlice, 150)]),
+        typed("2 cząstki czosnku", [parsedAs("czosnek", 2, .thinSlice, 10)]),
+        // A bowl, a glass or a mug of a snack is what fits in it, not a bowl of soup or a drink.
+        typed("miseczka lodów", [parsedAs("lody", 1, .bowl, 150)]),
+        typed("miseczka żelków", [parsedAs("zelki", 1, .bowl, 60)]),
+        typed("miseczka pestek dyni", [parsedAs("pestki-dyni", 1, .bowl, 50)]),
+        typed("kubek płatków", [parsedAs("platki-owsiane", 1, .mug, 110)]),
+        typed("kubek orzechów", [parsedAs("orzechy", 1, .mug, 150)]),
+        typed("szklanka płatków", [parsedAs("platki-owsiane", 1, .glass, 90)]),
+        typed("miseczka orzechów", [parsedAs("orzechy", 1, .bowl, 50)]),
+        typed("kubek migdałów", [parsedAs("migdaly", 1, .mug, 150)]),
+        typed("kubek pestek dyni", [parsedAs("pestki-dyni", 1, .mug, 150)]),
+        typed("kubek lodów", [parsedAs("lody", 1, .mug, 150)]),
+        typed("miseczka daktyli", [parsedAs("daktyle", 1, .bowl, 50)]),
+        typed("szklanka orzechów", [parsedAs("orzechy", 1, .glass, 125)]),
+        // "pączki" written with "ą" are doughnuts; a "paczka" is still a package.
+        typed("tłusty czwartek: 3 pączki", [parsedAs("paczek", 3, .piece, 210)]),
+        typed("pączek kawa", [parsedAs("paczek", 1, .piece, 70), parsedAs("kawa", 1, .mug, 250)]),
+        typed("2 paczki chipsów", [parsedAs("chipsy", 2, .package, 280)]),
+        typed("paczka chipsów", [parsedAs("chipsy", 1, .package, 140)]),
+        typed("kawa z paczką chipsów", [parsedAs("kawa", 1, .mug, 250), parsedAs("chipsy", 1, .package, 140)]),
+        // After a dish, "schabowy", "mielony" and "ruskie" are dishes of their own; other adjectives describe.
+        typed("rosół schabowy ziemniaki mizeria", [
+              parsedAs("rosol", 1, .serving, 350),
+              parsedAs("kotlet-schabowy", 1, .piece, 150),
+              parsedAs("ziemniaki", 1, .serving, 200),
+              parsedAs("mizeria", 1, .serving, 150)
+             ]),
+        typed("zupa pomidorowa mielony ziemniaki buraczki", [
+              parsedAs("zupa-pomidorowa", 1, .serving, 350),
+              parsedAs("kotlet-mielony", 1, .piece, 100),
+              parsedAs("ziemniaki", 1, .serving, 200),
+              parsedAs("buraki", 1, .serving, 100)
+             ]),
+        typed("barszcz ruskie", [
+              parsedAs("barszcz", 1, .serving, 300),
+              parsedAs("pierogi-ruskie", 1, .serving, 270)
+             ]),
+        typed("sałatka pomidorowa", [parsedAs("salatka", 1, .serving, 200)]),
+        typed("twaróg mielony", [parsedAs("twarog", 1, .serving, 100)]),
+        typed("kanapka pomidorowa", [parsedAs("chleb", 1, .slice, 35)]),
+        // Filled like pierogi ruskie, they are one dish.
+        typed("krokiety ruskie", [parsedAs("krokiety", 1, .piece, 100)]),
+        typed("naleśniki ruskie", [parsedAs("nalesniki", 1, .serving, 120)]),
+        // "surówka" is no raw chicken, "maślanka" no butter roll.
+        typed("kurczak surówka ziemniaki", [
+              parsedAs("piers-z-kurczaka", 1, .serving, 150),
+              parsedAs("surowka", 1, .serving, 120),
+              parsedAs("ziemniaki", 1, .serving, 200)
+             ]),
+        typed("bułka maślanka", [parsedAs("bulka", 1, .piece, 50), parsedAs("maslanka", 1, .glass, 250)]),
+        typed("kurczak surowy", [parsedAs("piers-z-kurczaka-surowa", 1, .serving, 150)]),
+        typed("pomidorówka", [parsedAs("zupa-pomidorowa", 1, .serving, 350)]),
+        typed("surówki", [parsedAs("surowka", 1, .serving, 120)]),
+        // Foods typed without commas keep their own amounts.
+        typed("150 g kurczaka 100 g ryżu 200 g brokułów", [
+              parsedAs("piers-z-kurczaka", 150, nil, 150),
+              parsedAs("ryz", 100, nil, 100),
+              parsedAs("brokul", 200, nil, 200)
+             ]),
+        typed("2 jajka 4 kromki chleba", [parsedAs("jajko", 2, .piece, 110), parsedAs("chleb", 4, .slice, 140)]),
+        // After "bez … i" the add-in was left out too; milk for the coffee is a splash.
+        typed("burger bez bułki i sosu", [parsedAs("hamburger", 1, .piece, 200)]),
+        typed("czarna kawa bez cukru i mleka", [parsedAs("kawa", 1, .mug, 250)]),
+        typed("kawa bez cukru i z mlekiem", [parsedAs("kawa", 1, .mug, 250), parsedAs("mleko", 30, nil, 30)]),
+        typed("kawa z cukrem i mlekiem", [
+              parsedAs("kawa", 1, .mug, 250),
+              parsedAs("cukier", 1, .teaspoon, 5),
+              parsedAs("mleko", 30, nil, 30)
+             ]),
+        typed("mleko do kawy", [parsedAs("mleko", 30, nil, 30)]),
+        typed("mleko owsiane do kawy", [parsedAs("mleko-owsiane", 30, nil, 30)]),
+        // After a comma, "z" and a food go on with the dish before it.
+        typed("kawa z cukrem, z mlekiem", [
+              parsedAs("kawa", 1, .mug, 250),
+              parsedAs("cukier", 1, .teaspoon, 5),
+              parsedAs("mleko", 30, nil, 30)
+             ]),
+        typed("pierogi, z cebulką 10 sztuk", [
+              parsedAs("pierogi-ruskie", 10, .piece, 450),
+              parsedAs("cebula", 1, .serving, 50)
+             ]),
+        // "na pół" halves the dish and what came with it; "na 2 osoby", "pół na pół" and "przekrojone na pół"
+        // are no share.
+        typed("pizza na pół z mężem", [parsedAs("pizza", 0.5, .piece, 200)]),
+        typed("pizza z szynką na pół", [parsedAs("pizza", 0.5, .piece, 200), parsedAs("szynka", 0.5, .serving, 15)]),
+        typed("sushi zestaw 16 sztuk na pół z koleżanką", [parsedAs("sushi", 8, .piece, 200)]),
+        typed("sushi 16 na pół", [parsedAs("sushi", 8, .piece, 200)]),
+        typed("pizza na 2 osoby", [parsedAs("pizza", 1, .piece, 400)]),
+        typed("pizza pół na pół", [parsedAs("pizza", 0.5, .piece, 200)]),
+        typed("pizza pół na pół z mężem", [parsedAs("pizza", 0.5, .piece, 200)]),
+        typed("jajka na twardo 3 sztuki", [parsedAs("jajko", 3, .piece, 165)]),
+        typed("2 jajka przekrojone na pół z majonezem", [
+              parsedAs("jajko", 2, .piece, 110),
+              parsedAs("majonez", 1, .tablespoon, 15)
+             ]),
+        // A patty of fish or millet is no pork chop; a chop with kasza still is one.
+        typed("kotlety z kaszy jaglanej 2 sztuki", [parsedAs("kotlet-warzywny", 2, .piece, 200)]),
+        typed("kotlet z łososia", [parsedAs("ryba-panierowana", 1, .serving, 150)]),
+        typed("kotlety rybne", [parsedAs("ryba-panierowana", 1, .serving, 150)]),
+        typed("kotlet z kaszą", [
+              parsedAs("kotlet-schabowy", 1, .piece, 150),
+              parsedAs("kasza-gryczana", 1, .serving, 150)
+             ]),
+        // "z kilkoma", "z paroma": a few pieces, not a serving.
+        typed("owsianka z kilkoma orzechami", [parsedAs("owsianka", 1, .bowl, 300), parsedAs("orzechy", 3, .piece, 9)]),
+        typed("jogurt z paroma orzechami", [
+              parsedAs("jogurt-naturalny", 1, .package, 150),
+              parsedAs("orzechy", 2, .piece, 6)
+             ]),
+        // A flavoured serek is a dessert cup, a protein one is like skyr; a plain one is a spoon of cream cheese.
+        typed("serek truskawkowy", [parsedAs("serek-homogenizowany", 1, .package, 150)]),
+        typed("serek proteinowy", [parsedAs("skyr", 1, .package, 150)]),
+        typed("serek", [parsedAs("serek-smietankowy", 1, .tablespoon, 20)]),
+        // The juice of a few fruits is not that many glasses.
+        typed("sok z 2 pomarańczy", [parsedAs("sok", 160, nil, 160)]),
+        typed("świeży sok z 4 pomarańczy", [parsedAs("sok", 320, nil, 320)]),
+        typed("sok z 2 jabłek", [parsedAs("sok", 160, nil, 160)]),
+        typed("2 szklanki soku z pomarańczy", [parsedAs("sok", 2, .glass, 500)]),
+        typed("sok z 3 cytryn", [parsedAs("sok-z-cytryny", 3, .piece, 120)]),
+        // The protein on a label is no amount; egg whites and whey are one.
+        typed("skyr 20 g białka", [parsedAs("skyr", 1, .package, 150)]),
+        typed("baton proteinowy 20 g białka", [parsedAs("baton-proteinowy", 1, .piece, 55)]),
+        typed("100 g białka jaj", [parsedAs("bialko-jaja", 100, nil, 100)]),
+        typed("100 g białka z jajka", [parsedAs("bialko-jaja", 100, nil, 100)]),
+        typed("50 g białka serwatkowego", [parsedAs("odzywka-bialkowa", 50, nil, 50)]),
+        // A name after "z" is no typo of a food.
+        typed("kawa z Kasią", [parsedAs("kawa", 1, .mug, 250)], unknown: ["Kasią"]),
+        typed("obiad z Markiem", [], unknown: ["Markiem"]),
+        typed("kanapka z Nutelą", [
+              parsedAs("chleb", 1, .slice, 35),
+              parsedAs("krem-czekoladowy", 1, .tablespoon, 15)
+             ]),
+    ]
 }
 
 /// The parser's key for a name: the letter runs of the normalized text ("Pierś z kurczaka" → "piers z kurczaka").
@@ -1091,6 +1366,11 @@ struct MealParserBuiltInCatalogTests {
 
     @Test("Everyday meals", arguments: BuiltInMealPhrases.everyday)
     func everydayMeals(_ expected: MealPhrase) {
+        expectParse(expected, with: parser)
+    }
+
+    @Test("Portions, patties, juice, labels and shares", arguments: BuiltInMealPhrases.portionsAndNames)
+    func portionsAndNames(_ expected: MealPhrase) {
         expectParse(expected, with: parser)
     }
 

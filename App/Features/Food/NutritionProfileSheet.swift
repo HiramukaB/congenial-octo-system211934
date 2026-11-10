@@ -1,18 +1,21 @@
 import SwiftUI
+import UIKit
+import Combine
 import AboutHerCore
 
 /// "Twoje cele dzienne": a few facts about her, and the targets computed from them
 /// (or her own numbers, if she prefers). Nothing personal is pre-filled from code.
 ///
-/// The sheet saves itself when it closes (swiped down or "gotowe"), but only when something
-/// changed and what she typed can be used. "anuluj" throws it away. While a change can't be
-/// saved yet, the sheet stays open and a gentle line names the first field that needs her.
+/// The sheet saves itself when it closes (swiped down or "gotowe") and when the app goes to the
+/// background, but only when something changed and what she typed can be used. "anuluj" throws
+/// away what changed after the last save. While a change can't be saved yet, the sheet stays
+/// open and a gentle line names the first field that needs her.
 struct NutritionProfileSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft = Draft()
-    /// The form as it opened; nil until it has been filled from her saved data.
+    /// The form as it opened, or as it was last saved; nil until it has been filled from her saved data.
     @State private var initial: Draft? = nil
     @State private var isCancelled = false
 
@@ -121,6 +124,16 @@ struct NutritionProfileSheet: View {
         .onDisappear {
             if !isCancelled {
                 commit()
+            }
+        }
+        // In the background the app may be ended before the sheet ever closes: what can be used is
+        // saved and written now, and from then on only a later change is saved again.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            guard !isCancelled else { return }
+            let saved = commit()
+            store.saveNow()
+            if saved {
+                initial = draft
             }
         }
     }
@@ -450,14 +463,21 @@ struct NutritionProfileSheet: View {
     }
 
     /// Opening and closing without a change writes nothing, so a read-only store raises no alert
-    /// just because she looked.
-    private func commit() {
-        guard hasChanges, canSave else { return }
+    /// just because she looked. Returns `true` when the store saved it.
+    @discardableResult
+    private func commit() -> Bool {
+        guard hasChanges, canSave else { return false }
         if draft.usesOwnTargets, let targets = ownTargetsCheck.value {
-            // Without a complete profile the saved one stays as it is (contract: nil keeps it).
-            store.saveNutrition(profile: profile, targets: .manual(targets))
-        } else if let profile {
-            store.saveNutrition(profile: profile, targets: .automatic)
+            // canSave lets this through without a complete profile only when nothing about her is
+            // typed. The stored one goes only when the sheet showed it (its birth year is in
+            // `initial`) and she emptied it: her file may be read only now, in canEdit, after the
+            // sheet opened empty.
+            let emptiedSavedProfile = !profileIsStarted && initial?.birthYear.isEmpty == false
+            return store.saveNutrition(profile: profile, targets: .manual(targets), clearsProfile: emptiedSavedProfile)
         }
+        if let profile {
+            return store.saveNutrition(profile: profile, targets: .automatic)
+        }
+        return false
     }
 }

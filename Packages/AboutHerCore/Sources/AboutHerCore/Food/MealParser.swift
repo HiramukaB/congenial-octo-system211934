@@ -54,13 +54,13 @@ public struct ParsedMeal: Codable, Sendable, Hashable {
 ///    rest is how or where it was eaten ("na twardo", "w pracy"). Foods typed without a comma are cut
 ///    apart too ("kurczak ryż brokuł", "kurczak z ryżem do tego surówka"), but never a name of two words
 ///    ("jogurt grecki"). After "i", a food in the form it takes after "z" carries that list on: in
-///    "kawa z cukrem i mlekiem" the milk went into the coffee.
+///    "kawa z cukrem i mlekiem" the milk went into the coffee; so it did in "kawa z cukrem, z mlekiem".
 /// 2. In each fragment the amount (2, 0,5, 1/2, ½, pół, trzy, trzy czwarte, 2 x 50) and the unit (g, dag,
 ///    kg, ml, l, łyżka, kromka, garść, talerz …) are read; the remaining words are the name. With no
 ///    amount at all she means one serving ("pierogi"), or one piece of a singular ("pieróg"); a count
 ///    means pieces ("6 pierogów"). A count written after what came with a dish counts the dish
-///    ("pierogi ruskie z cebulką 10 sztuk"). A clock time ("8:30", "o 8"), energy ("250 kcal") or a
-///    number of the name ("pizza 4 sery") is no amount.
+///    ("pierogi ruskie z cebulką 10 sztuk"). A clock time ("8:30", "o 8", "8 rano"), energy ("250 kcal"),
+///    the protein on a label ("20 g białka") or a number of the name ("pizza 4 sery") is no amount.
 /// 3. The name is matched against every alias: the alias with the most words wins, then the
 ///    earliest, then the closest form, then the longest. Words match exactly or through a Polish
 ///    ending (masło → masła, czosnek → czosnku, jajko → jajek), never inside another word
@@ -100,12 +100,15 @@ public struct MealParser: Sendable {
             }
         }
         var list: [MealAlias] = []
+        // One-word names: an adjective that is one ("pomidorowa") names a dish, it does not only describe one.
+        let singleWords = Set(keys.filter { entries[$0]?.words.count == 1 })
         for (order, key) in keys.enumerated() {
             if let entry = entries[key] {
                 let isSingular = (entry.item.singular ?? []).contains { phrase in
                     MealText.words(of: phrase).joined(separator: " ") == key
                 }
-                list.append(MealAlias(words: entry.words, item: entry.item, order: order, isSingular: isSingular))
+                list.append(MealAlias(words: entry.words, item: entry.item, order: order, isSingular: isSingular,
+                                      singleWords: singleWords))
             }
         }
         aliases = list
@@ -131,10 +134,12 @@ public struct MealParser: Sendable {
         var items: [ParsedItem] = []
         var unknown: [String] = []
         var start = 0
+        // "kawa z cukrem, z mlekiem": the dish the next fragment may go on with.
+        var carried: MealPreviousItem?
         for k in 0...meal.tokens.count {
             if k == meal.tokens.count || meal.tokens[k].kind == .separator {
                 if start < k {
-                    parseChunk(meal, start..<k, items: &items, unknown: &unknown)
+                    carried = parseChunk(meal, start..<k, carrying: carried, items: &items, unknown: &unknown)
                 }
                 start = k + 1
             }
@@ -151,20 +156,30 @@ public struct MealParser: Sendable {
 
     // MARK: - Segments
 
-    private func parseChunk(_ meal: MealText, _ chunk: Range<Int>,
-                            items: inout [ParsedItem], unknown: inout [String]) {
+    /// Returns the fragment's dish, which the next fragment may go on with.
+    private func parseChunk(_ meal: MealText, _ chunk: Range<Int>, carrying carried: MealPreviousItem?,
+                            items: inout [ParsedItem], unknown: inout [String]) -> MealPreviousItem? {
         let protected = protectedTokens(meal, chunk)
         // One dish and what came with it, which a group after "i" may carry on: "kawa z cukrem i mlekiem".
         // The item made from the part before.
         var previous: MealPreviousItem?
         // The dish (the first item), and whether a later part showed it is only the name of a dish.
         var firstItem: MealPreviousItem?
+        // "kawa z cukrem, z mlekiem": a fragment may go on with the dish of the one before.
+        if let carried, goesOn(meal, chunk) {
+            firstItem = carried
+        }
         var dropsFirst = false
         // Whether something came with the dish after "z": only then can a group after "i" carry the list on.
         var withList = false
+        // "kawa bez cukru i mleka": the group before ended under "bez".
+        var negatedBefore = false
         for group in meal.split(chunk, at: MealWords.joining, keeping: protected) {
             let parts = separated(meal, meal.split(group, at: MealWords.splitting, keeping: protected), protected)
-            let continues = firstItem != nil && withList && MealParser.carriesOn(meal, group)
+            // "kawa bez cukru i z mlekiem": a group that starts with "z" carries the dish on too.
+            let continues = firstItem != nil
+                && (withList || meal.isWord(group.lowerBound, group.upperBound, in: MealWords.withWords))
+                && MealParser.carriesOn(meal, group)
             if !continues {
                 if dropsFirst, let earliest = firstItem {
                     items.remove(at: earliest.index)
@@ -174,6 +189,8 @@ public struct MealParser: Sendable {
                 dropsFirst = false
                 withList = false
             }
+            // Whether this group was only an add-in left out under the "bez" before it.
+            var leftOut = false
             var i = 0
             while i < parts.count {
                 let part = parts[i]
@@ -201,12 +218,34 @@ public struct MealParser: Sendable {
                     i += 1
                     continue
                 }
+                // "pizza z szynką na pół z mężem": shared, so half of the dish and of what came with it
+                // ("pół na pół" and "przekrojone na pół" are no share).
+                if soft, head.match == nil, head.nameTokens.isEmpty, head.unit == nil,
+                   let share = head.quantity, share > 0, share < 1, let dish = firstItem,
+                   !MealParser.isNoShare(meal, part) {
+                    for index in items.indices where index >= dish.index {
+                        guard let food = product(items[index].foodID) else { continue }
+                        items[index].amount *= share
+                        items[index].grams *= share
+                        items[index].macros = food.macros(grams: items[index].grams)
+                    }
+                    previous = nil
+                    i += 1
+                    continue
+                }
                 if head.nameTokens.isEmpty {
                     i += 1
                     continue
                 }
                 if let match = head.match {
                     var analysis = head
+                    // "kawa bez cukru i mleka": an add-in after "bez … i" was left out too.
+                    if negatedBefore, parts.count == 1, analysis.quantity == nil, analysis.unit == nil,
+                       match.quality == 2, MealWords.addIns.contains(match.alias.item.id) {
+                        leftOut = true
+                        i += 1
+                        continue
+                    }
                     // "pierś z kurczka", "pomidorwa z ryzem": a typo in the dish's own name, not a second food.
                     if let earliest = firstItem, match.quality == 1 || earliest.match.quality == 1,
                        MealParser.follows(meal, part, MealWords.withWords),
@@ -228,6 +267,20 @@ public struct MealParser: Sendable {
                         analysis.unit = nil
                         analysis.quantityIsDecimal = false
                         analysis.quantityFollowsName = false
+                    }
+                    // "mleko do kawy": a splash, not a glass.
+                    if analysis.quantity == nil && analysis.unit == nil, MealWords.milks.contains(match.alias.item.id),
+                       part.contains(where: { k in
+                           meal.isWord(k, part.upperBound, "do")
+                               && meal.isWord(k + 1, part.upperBound, in: MealWords.forDrinks)
+                       }) {
+                        var splash = analysis
+                        splash.quantity = MealWords.splashMillilitres
+                        splash.unit = .grams(1)
+                        items.append(makeItem(meal, part, splash, match))
+                        previous = nil
+                        i += 1
+                        continue
                     }
                     // Milk with no amount of its own, after the drink or dish it went into.
                     if let dish = firstItem, analysis.quantity == nil && analysis.unit == nil,
@@ -296,7 +349,15 @@ public struct MealParser: Sendable {
                         break
                     }
                     let following = analyze(meal, parts[j], protected, allowingTypos: true)
-                    if following.quantity != nil || following.unit != nil { break }
+                    if following.quantity != nil || following.unit != nil {
+                        // "pyzy z mięsem 4 sztuki", "pyzy z mięsem 1 porcja": a count after what came with an unknown
+                        // dish counts the dish, unless that is counted in pieces itself ("… z jajkami 2 sztuki").
+                        let isCount = following.unit == nil || following.unit == MealUnit.portion(.piece)
+                            || following.unit == MealUnit.portion(.serving)
+                        let countsDish = following.quantity != nil && following.quantityFollowsName && isCount
+                            && following.match?.alias.item.defaultPortion.unit != PortionUnit.piece
+                        if !countsDish { break }
+                    }
                     if !following.nameTokens.isEmpty { last = parts[j].upperBound }
                     j += 1
                 }
@@ -307,10 +368,37 @@ public struct MealParser: Sendable {
                 previous = nil
                 i = j
             }
+            // "kawa bez cukru i mleka": the group ended under "bez".
+            if let last = parts.last {
+                negatedBefore = leftOut || last.contains(where: { k in
+                    meal.isWord(k, last.upperBound, MealWords.negation) && !protected.contains(k)
+                })
+            }
         }
         if dropsFirst, let earliest = firstItem {
             items.remove(at: earliest.index)
+            return nil
         }
+        return firstItem
+    }
+
+    /// Whether a fragment goes on with the dish of the one before: it starts with "z" and an amount ("jajecznica,
+    /// z 3 jajek") or a food in the form it takes after "z" ("kawa z cukrem, z mlekiem"), not with a name or
+    /// a dish of its own ("Z Kasią kawa", "z pizza").
+    private func goesOn(_ meal: MealText, _ chunk: Range<Int>) -> Bool {
+        guard meal.isWord(chunk.lowerBound, chunk.upperBound, in: MealWords.withWords) else { return false }
+        for k in (chunk.lowerBound + 1)..<chunk.upperBound {
+            let token = meal.tokens[k]
+            if token.isQuantity { return true }
+            guard token.kind == .word else { continue }
+            let word = token.norm
+            if MealWords.units[word] != nil { return true }
+            if MealWords.filler.contains(word) { continue }
+            let instrumental = MealWords.instrumentalLetters.contains(meal.chars[token.end - 1])
+                || MealWords.instrumentalEndings.contains(where: { word.hasSuffix($0) })
+            return instrumental && bestMatch([word], allowingTypos: false) != nil
+        }
+        return false
     }
 
     /// Whether a group after "i" carries on what came with the dish: "kawa z cukrem i mlekiem" (a food in the
@@ -389,6 +477,15 @@ public struct MealParser: Sendable {
     /// The first word of the name an earlier item was matched by: "jajecznica".
     private static func firstWord(_ meal: MealText, of earlier: MealPreviousItem) -> String {
         meal.tokens[earlier.analysis.nameTokens[earlier.match.position]].norm
+    }
+
+    /// Whether the word before "na" makes "na pół" no share: "pół na pół" is half and half,
+    /// "przekrojone na pół" only cut.
+    private static func isNoShare(_ meal: MealText, _ part: Range<Int>) -> Bool {
+        guard part.lowerBound >= 2 else { return false }
+        let k = part.lowerBound - 2
+        return meal.isWord(k, part.lowerBound, "pol")
+            || meal.isWord(k, part.lowerBound, startingWith: MealWords.cutStems)
     }
 
     /// Whether part `index` was split off at "na" or "w".
@@ -545,8 +642,10 @@ public struct MealParser: Sendable {
     private func separateFood(_ meal: MealText, _ k: Int, from head: MealCandidate) -> MealCandidate? {
         let word = meal.tokens[k].norm
         if MealWords.namedAfterNumber.contains(word) && k > 0 && meal.tokens[k - 1].isQuantity { return nil }
+        // "rosół schabowy", "zupa pomidorowa mielony": after a dish, a dish named by an adjective is a second food.
+        let namesDish = MealWords.dishAdjectives.contains(word) && head.alias.item.category == .dishes
         guard let other = bestMatch([word], allowingTypos: false), other.alias.item.id != head.alias.item.id,
-              !isModifier(word) else { return nil }
+              !isModifier(word) || namesDish else { return nil }
         return other
     }
 
@@ -585,7 +684,16 @@ public struct MealParser: Sendable {
     private func cut(_ meal: MealText, _ part: Range<Int>, at k: Int, amountFrom start: Int, plainSecond: Bool,
                      _ protected: Set<Int>) -> Int {
         if start == k { return k }
-        let second = analyze(meal, k..<part.upperBound, protected, allowingTypos: false)
+        // "2 jajka 4 kromki chleba 2 plastry sera": an amount with a food after it is that food's,
+        // so the second food is read only up to it.
+        var secondEnd = part.upperBound
+        for m in (k + 1)..<part.upperBound {
+            guard let found = meal.quantity(at: m, end: part.upperBound) else { continue }
+            let next = meal.isUnit(found.next, part.upperBound) ? found.next + 1 : found.next
+            if meal.hasNameWord(next..<part.upperBound) { secondEnd = m }
+            break
+        }
+        let second = analyze(meal, k..<secondEnd, protected, allowingTypos: false)
         let first = analyze(meal, part.lowerBound..<start, protected, allowingTypos: false)
         if second.quantity != nil || (first.quantity == nil && plainSecond) { return k }
         return start
@@ -599,6 +707,7 @@ public struct MealParser: Sendable {
         let end = part.upperBound
         var used = Set<Int>()          // tokens of the amount
         var unitToken: Int?            // the unit word right after the amount
+        var quantityToken: Int?        // the first token of the amount
         var q = part.lowerBound
         while q < end {
             guard let found = meal.quantity(at: q, end: end) else {
@@ -614,7 +723,8 @@ public struct MealParser: Sendable {
             var after = found.next
             var isDecimal = meal.tokens[q].kind == .number && after == q + 1 && value != value.rounded()
             used.formUnion(q..<after)
-            if meal.isUnit(after, end) {
+            // "2 pączki" is a count of doughnuts, not of packages.
+            if meal.isUnit(after, end) && !meal.isDoughnut(after) {
                 unitToken = after
                 after += 1
             }
@@ -624,12 +734,13 @@ public struct MealParser: Sendable {
                 value *= second.value
                 isDecimal = false
                 after = second.next
-                if meal.isUnit(after, end) {
+                if meal.isUnit(after, end) && !meal.isDoughnut(after) {
                     unitToken = after
                 }
             }
             // A run of digits nobody eats ("99999999999999999999 g") is no amount at all.
             if value.isFinite && value <= MealWords.maxAmount {
+                quantityToken = q
                 result.quantity = value
                 result.quantityIsDecimal = isDecimal
                 result.quantityFollowsName = meal.hasNameWord(part.lowerBound..<q)
@@ -654,7 +765,7 @@ public struct MealParser: Sendable {
                 continue
             }
             if MealWords.isJoining(word) && !protected.contains(k) { continue }
-            if MealWords.units[word] != nil {
+            if MealWords.units[word] != nil && !meal.isDoughnut(k) {
                 unitWords.append(k)
                 continue
             }
@@ -673,7 +784,16 @@ public struct MealParser: Sendable {
         }
         if !names.isEmpty {
             result.nameTokens = names
-            result.match = bestMatch(names.map { meal.tokens[$0].norm }, allowingTypos: allowingTypos)
+            // "kawa z Kasią": a capitalised word right after another word is a name, never a typo of a food.
+            let isName = names.contains { k in
+                k > 0 && meal.tokens[k - 1].kind == .word && meal.chars[meal.tokens[k].start].isUppercase
+            }
+            result.match = bestMatch(names.map { meal.tokens[$0].norm }, allowingTypos: allowingTypos && !isName)
+            // "sok z 4 pomarańczy": the count stands inside the name.
+            if let amountAt = quantityToken, let match = result.match, match.alias.words.count > 1 {
+                result.quantityInsideName = names[match.position] < amountAt
+                    && amountAt < names[match.position + match.alias.words.count - 1]
+            }
         } else if !unitWords.isEmpty,
                   let match = bestMatch(unitWords.map { meal.tokens[$0].norm }, allowingTypos: false) {
             // "2 pączki" is normalized like the unit "paczki": with nothing else, the unit word is the name.
@@ -714,6 +834,11 @@ public struct MealParser: Sendable {
                 amount = count
                 unit = nil
                 grams = count
+            } else if let count, analysis.quantityInsideName, item.category == .drinks {
+                // "sok z 4 pomarańczy": the juice of four oranges, not four glasses.
+                amount = count * MealWords.juicePerFruit
+                unit = nil
+                grams = amount
             } else if let count {
                 // A count means pieces: "6 pierogów", "pół melona".
                 let portion = MealParser.countedPortion(of: item)
@@ -758,6 +883,11 @@ public struct MealParser: Sendable {
         return item.defaultPortion
     }
 
+    /// The product an item was made from (an item always has one).
+    private func product(_ id: String) -> FoodItem? {
+        aliases.first(where: { $0.item.id == id })?.item
+    }
+
     // MARK: - Matching
 
     private func bestMatch(_ words: [String], allowingTypos: Bool) -> MealCandidate? {
@@ -794,7 +924,9 @@ public struct MealParser: Sendable {
         if MealWords.falseFriends.contains(word) { return 0 }
         // ser → sera, kurczak → kurczakiem; never inside a word (deser ≠ ser), never for "z" or "i".
         if alias.length >= 3 && hasEnding(word, after: alias.text) { return 2 }
-        if let stem = alias.vowelStem, hasEnding(word, after: stem, orNone: alias.bareStemIsWord) { return 2 }
+        // "surówka" is no form of "surowy", "maślanka" none of "maślana".
+        if let stem = alias.vowelStem, hasEnding(word, after: stem, orNone: alias.bareStemIsWord),
+           !(alias.isDescriptive && word.dropFirst(stem.count).hasPrefix("k")) { return 2 }
         if let stem = alias.fleetingStem, hasEnding(word, after: stem) { return 2 }
         if let plural = alias.genitivePlural, word == plural { return 2 }
         if allowingTypos {
@@ -853,8 +985,12 @@ private struct MealAliasWord: Sendable {
     let fleetingStem: String?
     /// Inserted e: jajko → jajek, bułka → bułek, borówki → borówek.
     let genitivePlural: String?
+    /// An adjective that only describes ("surowy", "maślana"), not a dish's own name ("pomidorowa"):
+    /// "surówka" and "maślanka" are no forms of it.
+    let isDescriptive: Bool
 
-    init(_ text: String) {
+    init(_ text: String, isDescriptive: Bool) {
+        self.isDescriptive = isDescriptive
         let letters = Array(text)
         let count = letters.count
         self.text = text
@@ -890,8 +1026,10 @@ private struct MealAlias: Sendable {
     /// One of the product's singular forms ("naleśnik"): one piece, not a serving.
     let isSingular: Bool
 
-    init(words: [String], item: FoodItem, order: Int, isSingular: Bool) {
-        self.words = words.map { MealAliasWord($0) }
+    init(words: [String], item: FoodItem, order: Int, isSingular: Bool, singleWords: Set<String>) {
+        self.words = words.map { word in
+            MealAliasWord(word, isDescriptive: MealWords.isAdjective(word) && !singleWords.contains(word))
+        }
         self.item = item
         self.order = order
         self.isSingular = isSingular
@@ -925,6 +1063,8 @@ private struct MealAnalysis {
     var quantityIsDecimal = false
     /// A name word comes before the amount: "piwo 0,5", not "0,5 piwa".
     var quantityFollowsName = false
+    /// The count stands inside the name: "sok z 4 pomarańczy" counts the fruit, not glasses.
+    var quantityInsideName = false
 }
 
 /// The item made from an earlier part of a group, which a later part may still change:
@@ -1079,8 +1219,25 @@ private struct MealText {
         k < end && tokens[k].kind == .word && words.contains(tokens[k].norm)
     }
 
+    /// Whether token `k` is a word that starts with one of `stems`: "przekrojone" with "przekroj".
+    func isWord(_ k: Int, _ end: Int, startingWith stems: Set<String>) -> Bool {
+        guard k < end && tokens[k].kind == .word else { return false }
+        let word = tokens[k].norm
+        return stems.contains(where: { word.hasPrefix($0) })
+    }
+
     func isUnit(_ k: Int, _ end: Int) -> Bool {
         k < end && tokens[k].kind == .word && MealWords.units[tokens[k].norm] != nil
+    }
+
+    /// "pączek", "pączki" written with "ą": normalized they read like the unit "paczek", "paczki"
+    /// (but "z paczką chipsów" is a package).
+    func isDoughnut(_ k: Int) -> Bool {
+        let token = tokens[k]
+        guard token.kind == .word, MealWords.units[token.norm] == MealUnit.portion(.package),
+              token.end - token.start >= 2 else { return false }
+        let second = chars[token.start + 1]
+        return second == "ą" || second == "Ą"
     }
 
     func isTimes(_ k: Int, _ end: Int) -> Bool {
@@ -1143,6 +1300,9 @@ private struct MealText {
         case .number:
             if isPercentage(k, end) { return nil }
             if token.isClock && !isUnit(k + 1, end) { return nil }
+            // "8 rano owsianka", "ok. 13 obiad: zupa", "2 śniadanie: jogurt": an hour or the meal's number.
+            if token.value <= 24 && token.value == token.value.rounded()
+                && isWord(k + 1, end, in: MealWords.hourWords) { return nil }
             if k + 2 < end && tokens[k + 1].kind == .slash && tokens[k + 2].kind == .number {
                 if tokens[k + 2].value == 0 { return nil }
                 value = token.value / tokens[k + 2].value
@@ -1182,6 +1342,11 @@ private struct MealText {
         }
         // "baton 250 kcal", "200-250 kcal": the energy on the wrapper.
         if isWord(next, end, in: MealWords.energy) { return nil }
+        // "skyr 20 g białka": the protein on the label, not an amount ("100 g białka jaj" is one).
+        if isUnit(next, end), MealWords.units[tokens[next].norm] == MealUnit.grams(1),
+           isWord(next + 1, end, in: MealWords.nutrients), !isWord(next + 2, end, in: MealWords.proteinFoods) {
+            return nil
+        }
         if isWord(next, end, "i") && isWord(next + 1, end, "pol") {
             return (value + 0.5, next + 2)
         }
@@ -1315,7 +1480,7 @@ private enum MealWords {
         ("poltora poltorej", 1.5),
         ("cwierc", 0.25),
         ("jeden jedna jedno jednego jednej jednym", 1),
-        ("dwa dwie dwoch dwoma dwom", 2),
+        ("dwa dwie dwoch dwoma dwom dwiema", 2),
         ("trzy trzech trzema", 3),
         ("cztery czterech czterema", 4),
         ("piec pieciu piecioma", 5),
@@ -1324,8 +1489,8 @@ private enum MealWords {
         ("osiem osmiu osmioma", 8),
         ("dziewiec dziewieciu dziewiecioma", 9),
         ("dziesiec dziesieciu dziesiecioma", 10),
-        ("pare paru", 2),
-        ("kilka kilku", 3),
+        ("pare paru paroma", 2),
+        ("kilka kilku kilkoma", 3),
     ] as [(String, Double)])
 
     static let units: [String: MealUnit] = table([
@@ -1348,6 +1513,10 @@ private enum MealWords {
         ("plaster plastra plastry plastrow plastrem plastrami plastrze plastrach", .portion(.thinSlice)),
         ("plasterek plasterka plasterki plasterkow plasterkiem plasterkami", .portion(.thinSlice)),
         ("plasterku plasterkach", .portion(.thinSlice)),
+        // "5 różyczek brokuła", "2 krążki ananasa", "4 cząstki pomarańczy": a small piece, weighed like a slice.
+        ("rozyczka rozyczki rozyczek rozyczke rozyczkami krazek krazka krazki krazkow krazkiem krazkami",
+         .portion(.thinSlice)),
+        ("czastka czastki czastek czastke czastkami", .portion(.thinSlice)),
         ("garsc garsci garscia garstka garstki garstke garscie garsciami garsciach", .portion(.handful)),
         ("sztuka sztuki sztuk sztuke szt galka galki galek galke", .portion(.piece)),
         // A cube of chocolate or sugar, a block of twaróg, butter or tofu: the product's own piece.
@@ -1376,7 +1545,7 @@ private enum MealWords {
         "podwieczorek", "podwieczorku", "zjadlam", "wypilam", "jadlam", "pilam",
         "pizzerii", "restauracji", "kawiarni", "piekarni", "cukierni", "stolowki", "sklepu", "automatu",
         "dostawy", "costy", "starbucks", "starbucksa", "kfc", "mcdonalds", "mcdonaldsa", "mcdonalda", "biedronki",
-        "lidla", "ikei", "orlenu", "baru", "barze", "mlecznego", "mlecznym",
+        "lidla", "ikei", "orlenu", "baru", "barze", "mlecznego", "mlecznym", "browaru",
         "chlopakiem", "mezem", "kolezanka", "kolezankami", "kolega", "kolegami", "przyjaciolka",
         "przyjaciolkami", "przyjacielem", "przyjaciolmi", "znajomymi", "rodzina", "rodzicami", "mama", "tata",
         "siostra", "bratem", "dziecmi", "corka", "synem", "partnerem", "partnerka", "dziewczynami", "babcia",
@@ -1405,8 +1574,8 @@ private enum MealWords {
     /// "kawa bez cukru": nothing after it was eaten.
     static let negation = "bez"
     /// Words that look like an inflected short alias but are other words (pora ≠ por, wódka ≠ woda,
-    /// oliwki ≠ oliwa). They still match a product spelled exactly like them.
-    static let falseFriends: Set<String> = ["pora", "wodka", "wodki", "oliwka", "oliwki", "oliwkami"]
+    /// oliwki ≠ oliwa, "protein" of a label ≠ proteina). They still match a product spelled exactly like them.
+    static let falseFriends: Set<String> = ["pora", "wodka", "wodki", "oliwka", "oliwki", "oliwkami", "protein"]
     /// Polish endings of nouns and adjectives, normalized (ę → e, ą → a, ó → o).
     static let endings: Set<String> = [
         "a", "u", "y", "i", "e", "o", "em", "om", "ie", "ach", "ami", "ow", "owi", "ka", "ki", "kiem", "kami",
@@ -1425,6 +1594,8 @@ private enum MealWords {
     ]
     /// "o 8 owsianka", "godz. 13 zupa": the number after them is an hour, never an amount.
     static let clockWords: Set<String> = ["o", "godz", "godzina", "godzinie"]
+    /// "8 rano owsianka", "ok. 13 obiad: zupa": a whole number up to 24 before them is an hour.
+    static let hourWords: Set<String> = ["rano", "wieczorem", "h", "sniadanie", "obiad", "kolacja", "lunch"]
     /// "do tego surówka", "do picia sok": what follows is eaten too, unlike "miód do herbaty".
     static let besides: Set<String> = ["tego", "tej", "picia"]
     /// "trzy czwarte szklanki", "jedna trzecia pizzy": the number before them is divided.
@@ -1440,10 +1611,20 @@ private enum MealWords {
     static let containers: Set<String> = [
         "koktajl", "koktajle", "koktajlu", "koktajlem", "smoothie", "smoothies", "szejk", "szejka", "shake",
     ]
-    /// Unit symbols that need a number: a bare "L" is a size, not a litre.
-    static let unitSymbols: Set<String> = ["g", "gr", "dag", "dkg", "kg", "ml", "l"]
+    /// Unit words that need a number: a bare "L" is a size, not a litre, and "różyczki brokuła" with no number
+    /// are a serving.
+    static let unitSymbols: Set<String> = [
+        "g", "gr", "dag", "dkg", "kg", "ml", "l", "rozyczka", "rozyczki", "rozyczek", "rozyczke", "rozyczkami",
+        "krazek", "krazka", "krazki", "krazkow", "krazkiem", "krazkami", "czastka", "czastki", "czastek", "czastke",
+        "czastkami",
+    ]
     /// "baton 250 kcal": energy, not an amount.
     static let energy: Set<String> = ["kcal", "kalorii", "kalorie"]
+    /// "skyr 20 g białka": a nutrient on the label, not an amount.
+    static let nutrients: Set<String> = ["bialka", "bialko", "tluszczu", "weglowodanow", "blonnika", "cukrow"]
+    /// "100 g białka jaj", "100 g białka z jajka", "30 g białka serwatkowego": egg white or whey, an amount after
+    /// all (a "z" stays in the part only inside a name).
+    static let proteinFoods: Set<String> = ["jaj", "jaja", "jajek", "jajka", "z", "serwatkowego", "serwatkowe", "wpc"]
     /// A number right before one of these is part of the name: "pizza 4 sery", "chleb 7 zbóż", "pizza 30 cm".
     static let namedAfterNumber: Set<String> = ["cm", "sery", "serow", "zboz", "ziaren"]
     /// The largest amount: a longer run of digits is no amount at all (and never reaches the UI).
@@ -1459,6 +1640,13 @@ private enum MealWords {
     static let flavoured: Set<String> = ["sos", "zupa", "zupka", "sok", "budyn", "kisiel"]
     /// A genitive of these after a food says what it is made of: "udko indyka", "rosół kurczaka".
     static let genitiveFoods: Set<FoodCategory> = [.meat, .fish]
+    /// Dishes named by an adjective alone: after another dish they are a second food ("rosół schabowy").
+    static let dishAdjectives: Set<String> = ["schabowy", "mielony", "ruskie"]
+    /// "przekrojone na pół", "pokroiłam na pół": cut in half, not shared (przekroić, pokroić, przeciąć, złożyć).
+    static let cutStems: Set<String> = [
+        "przekroj", "pokroj", "rozkroj", "kroj", "przekroil", "pokroil", "rozkroil", "kroil", "przeciet", "rozciet",
+        "przeciel", "rozciel", "zloz",
+    ]
     /// Fragments with more name words are sentences, not foods typed without commas: they are not cut.
     static let maxSeparatedWords = 12
     /// Milk with no amount after the drink or dish it went with ("kawa z cukrem i mlekiem") ...
@@ -1468,9 +1656,17 @@ private enum MealWords {
         "latte", "cappuccino", "kawa-z-mlekiem", "herbata-z-mlekiem", "kakao", "budyn", "nalesniki",
         "nalesniki-z-serem", "placuszki", "owsianka", "kasza-manna",
     ]
-    /// ... and in coffee or tea it is a splash, not a glass: "kawa z mlekiem".
+    /// ... and in coffee or tea it is a splash, not a glass: "kawa z mlekiem", "mleko do kawy".
     static let splashDrinks: Set<String> = ["kawa", "herbata"]
     static let splashMillilitres: Double = 30
+    /// "mleko do kawy", "mleko do herbaty": the drink the splash is for.
+    static let forDrinks: Set<String> = ["kawy", "herbaty", "kawki", "herbatki"]
+    /// What goes into a drink or onto a dish: after "bez … i" it was left out too ("kawa bez cukru i mleka").
+    static let addIns: Set<String> = MealWords.milks.union([
+        "cukier", "slodzik", "miod", "smietana", "sos", "majonez", "ketchup", "cytryna", "maslo",
+    ])
+    /// "sok z 4 pomarańczy": the juice of one fruit, in millilitres.
+    static let juicePerFruit: Double = 80
     /// Endings only a singular takes: "z jajkiem" and "w ziemniaku" are one piece, like "jajko".
     static let singularEndings: Set<String> = ["em", "u"]
 

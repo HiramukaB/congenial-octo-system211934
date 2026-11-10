@@ -250,15 +250,17 @@ struct MealLogCard: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         // An emptied field changes nothing; a meal is deleted with a swipe.
         guard !trimmed.isEmpty else { return true }
+        // The date can move back (a time zone to the west): a new meal then goes to the day it is now.
+        let newMealDay = Swift.min(editing.day, store.today)
         guard let id = editing.mealID else {
-            return store.logMeal(trimmed, on: editing.day)
+            return store.logMeal(trimmed, on: newMealDay)
         }
         guard trimmed != editing.originalText else { return true }
         if store.data.meals(on: editing.day).contains(where: { $0.id == id }) {
             return store.replaceMeal(id, text: trimmed, on: editing.day)
         }
         // The meal isn't there any more: keep her words as a new meal rather than lose them.
-        return store.logMeal(trimmed, on: editing.day)
+        return store.logMeal(trimmed, on: newMealDay)
     }
 
     /// The return key of a multi-line field inserts a line break: a single one means "gotowe".
@@ -266,7 +268,19 @@ struct MealLogCard: View {
     private func handleLineBreaks(oldValue: String, newValue: String) {
         guard newValue.contains(where: \.isNewline) else { return }
         let withoutBreaks = newValue.filter { !$0.isNewline }
-        let isReturnKey = newValue.filter(\.isNewline).count == 1
+        let breaks = newValue.filter(\.isNewline).count
+        if breaks == 1, withoutBreaks != oldValue, let lineBreak = newValue.firstIndex(where: \.isNewline) {
+            let before = newValue[..<lineBreak]
+            let after = newValue[newValue.index(after: lineBreak)...]
+            // ✓ over selected text replaced the selection with the line break: it still only means
+            // "gotowe", so her text is saved as it was.
+            if before.count + after.count < oldValue.count, oldValue.hasPrefix(before), oldValue.hasSuffix(after) {
+                draft = oldValue
+                finishEditing(text: oldValue)
+                return
+            }
+        }
+        let isReturnKey = breaks == 1
             && (withoutBreaks == oldValue
                 // An autocorrection can land together with the return key at the end of the text.
                 || (newValue.last?.isNewline == true && newValue.count - oldValue.count <= 2))
@@ -279,10 +293,13 @@ struct MealLogCard: View {
     }
 
     /// "owsianka⏎banan⏎kawa z mlekiem" → "owsianka, banan, kawa z mlekiem": the parser reads each
-    /// comma-separated part as a food of its own. List bullets and stray commas at the ends go.
+    /// comma-separated part as a food of its own. List bullets, list numbers and stray commas at
+    /// the ends go.
     static func joiningLines(_ text: String) -> String {
         let edges = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ",;•·*-–—"))
         return text.split(whereSeparator: \.isNewline)
+            // "1) owsianka", "2. banan", "3: kawa": a list number, not an amount ("8:30", "1.5 kg" stay).
+            .map { $0.replacingOccurrences(of: #"^\s*\d{1,2}[.):](?!\d)"#, with: "", options: .regularExpression) }
             .map { $0.trimmingCharacters(in: edges) }
             .filter { !$0.isEmpty }
             .joined(separator: ", ")

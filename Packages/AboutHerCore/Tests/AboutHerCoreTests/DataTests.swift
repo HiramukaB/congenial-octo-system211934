@@ -175,6 +175,42 @@ struct DataTests {
         #expect(appData.eaten(on: day).kcal == 220)
     }
 
+    @Test func teachingAProductCountsAgainOnlyTheMealsItConcerns() throws {
+        // A catalog of one, so the test doesn't depend on what the built-in catalog knows.
+        let sernik = FoodItem(id: "sernik", name: "sernik", category: .sweets,
+                              per100: Macros(kcal: 300, protein: 7, carbs: 25, fat: 18),
+                              defaultPortion: Portion(unit: .serving, grams: 100))
+        let catalog = FoodCatalog(items: [sernik])
+        let day = LocalDate(year: 2026, month: 3, day: 2)
+        // Both meals were counted when a serving of sernik still weighed 250 g; the catalog now says 100 g.
+        let earlierSernik = ParsedItem(text: "sernik", foodID: "sernik", foodName: "sernik", amount: 1, unit: .serving,
+                                       grams: 250, macros: Macros(kcal: 750, protein: 17.5, carbs: 62.5, fat: 45))
+        let unrelated = MealEntry(text: "sernik, coś słodkiego",
+                                  parsed: ParsedMeal(items: [earlierSernik], unknown: ["coś słodkiego"]))
+        let waiting = MealEntry(text: "sernik, szakszuka",
+                                parsed: ParsedMeal(items: [earlierSernik], unknown: ["szakszuka"]))
+        var appData = AppData()
+        appData.addMeal(unrelated, on: day)
+        appData.addMeal(waiting, on: day)
+        #expect(MealParser(catalog: catalog).parse(unrelated.text).totals != unrelated.totals)
+
+        let taught = FoodItem(id: "user-1", name: "szakszuka", category: .dishes,
+                              per100: Macros(kcal: 100, protein: 6, carbs: 5, fat: 6),
+                              defaultPortion: Portion(unit: .serving, grams: 300))
+        appData.teachFood(taught, catalog: catalog)
+
+        // The meal it doesn't concern keeps what it was counted as, its unknown part too …
+        let meals = appData.meals(on: day)
+        try #require(meals.count == 2)
+        #expect(meals[0] == unrelated)
+        // … and the one whose unknown part it is, is counted again, with the catalog as it is now.
+        #expect(meals[1].id == waiting.id)
+        #expect(meals[1].unknown.isEmpty)
+        #expect(meals[1].items.map(\.foodID) == ["sernik", "user-1"])
+        #expect(meals[1].totals.kcal == 600)
+        #expect(appData.eaten(on: day).kcal == 1350)
+    }
+
     @Test func recognisesFilesWrittenByANewerVersion() throws {
         #expect(!AppDataCoding.isFromNewerVersion(try AppDataCoding.encode(AppData())))
         #expect(!AppDataCoding.isFromNewerVersion(Data("{}".utf8)))

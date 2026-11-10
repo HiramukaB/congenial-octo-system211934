@@ -87,8 +87,10 @@ public struct AppData: Codable, Sendable, Equatable {
     }
 
     /// Adds a product she taught the app – replacing an earlier one with the same id or name, so
-    /// teaching it again corrects it – then parses again every entry that had unrecognised parts
-    /// or used the replaced product, so the change counts in days already logged too.
+    /// teaching it again corrects it – then parses again the entries it concerns, so the change
+    /// counts in days already logged too: those that used a product it replaces, and those with a
+    /// part no product matched that it matches now. Every other entry keeps what it was counted
+    /// as, also when the catalog has changed since it was logged.
     ///
     /// Taught again under its name (a new id), the product keeps the earlier one's name and forms
     /// as aliases, so the meals she logged with them keep counting. Saved under its own id, it is
@@ -113,11 +115,18 @@ public struct AppData: Codable, Sendable, Equatable {
         userFoods.removeAll { replaced.contains($0.id) }
         userFoods.insert(item, at: Swift.min(position, userFoods.endIndex))
         let parser = MealParser(catalog: catalog, userFoods: userFoods)
+        let taughtID = item.id
         func needsParsing(_ entry: MealEntry) -> Bool {
-            !entry.unknown.isEmpty || entry.items.contains { replaced.contains($0.foodID) }
+            entry.items.contains { replaced.contains($0.foodID) }
+                || entry.unknown.contains { fragment in
+                    parser.parse(fragment).items.contains { $0.foodID == taughtID }
+                }
         }
-        for (day, entries) in meals where entries.contains(where: needsParsing) {
-            meals[day] = entries.map { needsParsing($0) ? $0.reparsed(with: parser) : $0 }
+        for (day, entries) in meals {
+            let updated = entries.map { needsParsing($0) ? $0.reparsed(with: parser) : $0 }
+            if updated != entries {
+                meals[day] = updated
+            }
         }
     }
 

@@ -77,16 +77,19 @@ I("jogurt-owocowy", "jogurt owocowy", ["jogurt truskawkowy", "jogurt waniliowy",
   "dairy", 95, 3.5, 14, 2.5, ("package", 150), [("mug", 150)], tags=["calcium"])
 I("kefir", "kefir", [], "dairy", 51, 3.4, 4.7, 2, ("glass", 250), [("package", 400)], tags=["calcium"])
 I("maslanka", "maślanka", [], "dairy", 40, 3.4, 4.7, 1, ("glass", 250), [("package", 500)], tags=["calcium"])
-I("skyr", "skyr", ["jogurt skyr", "serek skyr", "skyr z kakao"], "dairy", 63, 11, 4, 0.2, ("package", 150),
-  [("tablespoon", 25), ("mug", 150)], tags=["protein", "calcium"])
+# A protein cup ("serek proteinowy") is closest to skyr: about 60 kcal and 11 g of protein per 100 g.
+I("skyr", "skyr", ["jogurt skyr", "serek skyr", "skyr z kakao", "serek proteinowy"], "dairy", 63, 11, 4, 0.2,
+  ("package", 150), [("tablespoon", 25), ("mug", 150)], tags=["protein", "calcium"])
 I("serek-wiejski", "serek wiejski", ["twarożek ziarnisty", "serek ziarnisty", "cottage cheese", "serek cottage",
                                      "ser cottage"],
   "dairy", 97, 11, 2.7, 4.5, ("package", 200), [("tablespoon", 25)], tags=["protein", "calcium"])
 I("serek-smietankowy", "serek śmietankowy", ["serek", "serek kanapkowy", "serek naturalny",
                                              "serek do smarowania", "serek kremowy", "ser kremowy"],
   "dairy", 250, 6, 3.5, 23, ("tablespoon", 20), [("package", 150), ("teaspoon", 7)])
+# A flavoured serek ("truskawkowy", "czekoladowy") is a dessert cup, not a spoon of cream cheese.
 I("serek-homogenizowany", "serek homogenizowany", ["serek waniliowy", "serek owocowy", "homogenizowany",
-                                                   "serek danio"],
+                                                   "serek danio", "serek truskawkowy", "serek czekoladowy",
+                                                   "serek brzoskwiniowy"],
   "dairy", 150, 8, 14, 7, ("package", 150), [("mug", 150)], tags=["calcium"])
 # A "kostka" (block) of twaróg, masło, tofu or feta is a piece; "kostka" of chocolate or sugar is one cube.
 I("twarog", "twaróg", ["twarożek", "twaróg półtłusty", "ser biały", "biały ser", "gzik"],
@@ -218,9 +221,12 @@ I("dorsz", "dorsz", ["filet z dorsza"], "fish", 82, 18, 0, 0.7, ("serving", 150)
 I("ryba", "ryba", ["filet rybny", "mintaj", "morszczuk", "tilapia", "panga", "miruna", "halibut", "pstrąg",
                    "filet z ryby", "ryba gotowana", "ryba pieczona", "filet z mintaja"],
   "fish", 100, 19, 0, 2.5, ("serving", 150), [("chunk", 125)], tags=["protein"])
+# A fish patty ("kotlet rybny", "kotlet z łososia") is breaded fish, not a pork chop and a fillet.
 I("ryba-panierowana", "ryba w panierce", ["ryba smażona", "smażona ryba", "filet w panierce",
                                           "ryba panierowana", "fish and chips", "dorsz w panierce",
-                                          "mintaj w panierce", "filet z dorsza w panierce", "dorsz panierowany"],
+                                          "mintaj w panierce", "filet z dorsza w panierce", "dorsz panierowany",
+                                          "kotlet rybny", "kotlet z ryby", "kotlet z łososia", "kotlet z tuńczyka",
+                                          "kotlet z dorsza", "kotlet z mintaja"],
   "fish", 200, 13, 14, 10.5, ("serving", 150), tags=["protein"])
 I("paluszki-rybne", "paluszki rybne", [], "fish", 220, 12, 20, 10, ("piece", 25), [("serving", 125)],
   tags=["protein"])
@@ -294,20 +300,22 @@ I("owsianka-na-wodzie", "owsianka na wodzie", ["owsianka z wodą"], "dishes", 62
   tags=["fiber"])
 I("kasza-manna", "kasza manna", ["manna", "kaszka", "kaszka manna", "kasza manna na mleku", "grysik"], "dishes",
   95, 4, 14, 2.5, ("bowl", 250), tags=["calcium"])
-# Dry flakes: a bowl ("miska płatków") is the dry weight in it, 40-60 g as on the packs.
+# Dry flakes: a bowl ("miska płatków") is the dry weight in it, 40-60 g as on the packs; a glass or a mug is what
+# fits in it.
 # No bare "owsiane": "latte na owsianym" is oat milk, not flakes.
 I("platki-owsiane", "płatki owsiane", ["płatki", "płatki górskie", "płatki owsiane górskie",
                                        "płatki błyskawiczne", "otręby", "otręby owsiane",
                                        "owsianka z płatków", "owsianka płatki", "owsianych"],
-  "grains", 372, 13, 67, 7, ("serving", 50), [("tablespoon", 10), ("glass", 90), ("handful", 30), ("bowl", 50)],
+  "grains", 372, 13, 67, 7, ("serving", 50),
+  [("tablespoon", 10), ("glass", 90), ("handful", 30), ("bowl", 50), ("mug", 110)],
   tags=["fiber", "magnesium", "iron"])
 I("platki-kukurydziane", "płatki kukurydziane", ["corn flakes", "cornflakes", "płatki śniadaniowe",
                                                  "płatki czekoladowe", "cini minis"],
-  "grains", 378, 7, 84, 0.9, ("serving", 40), [("glass", 30), ("bowl", 40)])
+  "grains", 378, 7, 84, 0.9, ("serving", 40), [("glass", 30), ("bowl", 40), ("mug", 35)])
 I("musli", "musli", ["muesli", "musli owocowe"], "grains", 360, 9, 66, 6, ("serving", 50),
-  [("tablespoon", 10), ("glass", 100), ("bowl", 50)], tags=["fiber"])
+  [("tablespoon", 10), ("glass", 100), ("bowl", 50), ("mug", 120)], tags=["fiber"])
 I("granola", "granola", ["granola orzechowa"], "grains", 450, 10, 62, 18, ("serving", 40),
-  [("tablespoon", 10), ("bowl", 50), ("glass", 110)], tags=["fiber"])
+  [("tablespoon", 10), ("bowl", 50), ("glass", 110), ("mug", 130)], tags=["fiber"])
 I("maka", "mąka", ["mąka pszenna", "mąka orkiszowa"], "grains", 350, 10, 74, 1.2, ("tablespoon", 10),
   [("glass", 130)])
 I("ziemniaki", "ziemniaki", ["ziemniak", "kartofle", "kartofel", "ziemniaczki", "ziemniaki gotowane",
@@ -344,8 +352,9 @@ I("pierogi-z-owocami", "pierogi z owocami", ["pierogi z jagodami", "pierogi z tr
 I("leniwe", "kluski leniwe", ["leniwe", "pierogi leniwe", "leniwe pierogi"], "dishes", 200, 9, 28, 6,
   ("serving", 250))
 I("uszka", "uszka", ["uszko"], "dishes", 210, 5, 33, 6.5, ("piece", 8), [("serving", 80)], singular=["uszko"])
-I("nalesniki", "naleśniki", ["naleśnik", "naleśniczki", "crepes"], "dishes", 200, 7, 27, 7, ("piece", 60),
-  [("serving", 120)], singular=["naleśnik"])
+# "naleśniki ruskie", "krokiety ruskie": filled like pierogi ruskie, not a plate of pierogi besides.
+I("nalesniki", "naleśniki", ["naleśnik", "naleśniczki", "crepes", "naleśniki ruskie", "naleśnik ruski"], "dishes",
+  200, 7, 27, 7, ("piece", 60), [("serving", 120)], singular=["naleśnik", "naleśnik ruski"])
 I("nalesniki-z-serem", "naleśniki z serem", ["naleśniki z twarogiem", "naleśnik z serem", "naleśnik z twarogiem",
                                              "naleśniki z serem na słodko"],
   "dishes", 200, 10, 25, 6.5, ("piece", 100), [("serving", 200)], tags=["protein"],
@@ -388,9 +397,12 @@ I("leczo", "leczo", [], "dishes", 75, 3, 6, 4.5, ("serving", 300))
 I("fasolka-po-bretonsku", "fasolka po bretońsku", ["fasola po bretońsku"], "dishes", 120, 6.5, 13, 4.5,
   ("serving", 300), tags=["protein", "fiber"])
 I("chili-con-carne", "chili con carne", [], "dishes", 110, 8.5, 9, 4.5, ("serving", 300), tags=["protein"])
-I("krokiety", "krokiety", ["krokiet", "pasztecik"], "dishes", 220, 8, 22, 11, ("piece", 100))
+I("krokiety", "krokiety", ["krokiet", "pasztecik", "krokiety ruskie", "krokiet ruski"], "dishes", 220, 8, 22, 11,
+  ("piece", 100))
+# Only patties whose "z …" is no usual side: "kotlet z kaszą" stays a chop with kasza.
 I("kotlet-warzywny", "kotlet warzywny", ["kotlet sojowy", "kotlet wegetariański", "kotlet wege",
-                                         "kotlet z ciecierzycy", "kotlet z soczewicy", "kotlet z kalafiora"],
+                                         "kotlet z ciecierzycy", "kotlet z soczewicy", "kotlet z kalafiora",
+                                         "kotlet z kaszy jaglanej", "kotlet jaglany"],
   "dishes", 200, 10, 18, 10, ("piece", 100))
 I("ser-smazony", "ser smażony", ["smażony ser", "ser panierowany"], "dishes", 330, 17, 14, 23, ("piece", 120),
   tags=["calcium"])
@@ -475,7 +487,8 @@ I("marchew", "marchew", ["marchewka", "marchewka z groszkiem", "marcheweczka"],
 I("rzodkiewka", "rzodkiewka", [], "vegetables", 16, 0.7, 3.4, 0.1, ("piece", 15), [("serving", 50)])
 I("cebula", "cebula", ["cebulka", "cebula czerwona", "dymka"], "vegetables", 40, 1.1, 9.3, 0.1, ("piece", 100),
   [("serving", 50)])
-I("czosnek", "czosnek", ["czosnek niedźwiedzi"], "vegetables", 149, 6.4, 33, 0.5, ("clove", 5))
+# "2 cząstki czosnku" are cloves, not 15 g slices.
+I("czosnek", "czosnek", ["czosnek niedźwiedzi"], "vegetables", 149, 6.4, 33, 0.5, ("clove", 5), [("thinSlice", 5)])
 I("cukinia", "cukinia", [], "vegetables", 17, 1.2, 3.1, 0.3, ("serving", 150), [("piece", 250)])
 I("baklazan", "bakłażan", ["oberżyna"], "vegetables", 25, 1, 6, 0.2, ("serving", 150), [("piece", 300)],
   tags=["fiber"])
@@ -506,7 +519,7 @@ I("warzywa", "warzywa", ["warzywka", "mieszanka warzyw", "bukiet warzyw", "warzy
                          "ratatouille", "warzywa na parze"],
   "vegetables", 35, 1.8, 6.5, 0.3, ("serving", 150), tags=["fiber"])
 I("oliwki", "oliwki", ["oliwka", "oliwkami", "oliwki zielone", "oliwki czarne"], "fats", 145, 1, 3.8, 15,
-  ("piece", 4), [("serving", 30), ("handful", 30)], singular=["oliwka"])
+  ("piece", 4), [("serving", 30), ("handful", 30), ("bowl", 80)], singular=["oliwka"])
 
 # ---------------------------------------------------------------- fruit
 I("banan", "banan", [], "fruit", 97, 1.1, 22.8, 0.3, ("piece", 120), tags=["magnesium"])
@@ -541,38 +554,49 @@ I("ananas", "ananas", [], "fruit", 50, 0.5, 13, 0.1, ("serving", 150), [("thinSl
 I("cytryna", "cytryna", ["limonka"], "fruit", 29, 1.1, 6.5, 0.3, ("piece", 100), [("serving", 10), ("thinSlice", 10)])
 I("sok-z-cytryny", "sok z cytryny", ["sok z limonki", "sok cytrynowy"], "fruit",
   22, 0.4, 6.9, 0.2, ("piece", 40), [("tablespoon", 15), ("teaspoon", 5)])
-I("daktyle", "daktyle", ["daktyl"], "fruit", 282, 2.5, 75, 0.4, ("piece", 8), [("serving", 30)],
-  tags=["fiber", "magnesium"], singular=["daktyl"])
+I("daktyle", "daktyle", ["daktyl"], "fruit", 282, 2.5, 75, 0.4, ("piece", 8),
+  [("serving", 30), ("bowl", 50), ("glass", 125), ("mug", 150)], tags=["fiber", "magnesium"], singular=["daktyl"])
 I("rodzynki", "rodzynki", ["rodzynka"], "fruit", 299, 3.1, 79, 0.5, ("piece", 0.5),
-  [("handful", 30), ("serving", 30), ("tablespoon", 12)], singular=["rodzynka"])
+  [("handful", 30), ("serving", 30), ("tablespoon", 12), ("bowl", 50), ("glass", 125), ("mug", 150)],
+  singular=["rodzynka"])
 # A count means pieces (a prune or an apricot is about 8 g); a bare mention is a handful-sized serving.
 I("suszone-owoce", "suszone owoce", ["bakalie", "suszone morele", "suszone śliwki", "żurawina suszona",
                                      "żurawina", "suszona żurawina", "figi suszone", "figi"],
-  "fruit", 280, 2.5, 66, 0.6, ("piece", 8), [("handful", 30), ("serving", 30)], tags=["fiber"])
+  "fruit", 280, 2.5, 66, 0.6, ("piece", 8),
+  [("handful", 30), ("serving", 30), ("bowl", 50), ("glass", 125), ("mug", 150)], tags=["fiber"])
 I("owoce", "owoce", ["owoc", "sałatka owocowa", "mrożone owoce", "owoce mrożone", "owocki"], "fruit",
   50, 0.7, 12, 0.3, ("serving", 150), tags=["fiber"])
 
 # ---------------------------------------------------------------- nuts, seeds
-# A snack bowl of nuts ("miseczka orzechów") is about 50 g, not the 350 g of a bowl of soup.
+# A snack bowl of nuts ("miseczka orzechów") is about 50 g, not the 350 g of a bowl of soup; a glass or a mug of
+# nuts, seeds or dried fruit is what fits in it (about 125 g and 150 g), not the 250 g or 300 g of a drink.
 I("orzechy", "orzechy", ["orzech", "mieszanka orzechów", "mix orzechów", "orzeszki mix", "orzechy mieszane"],
-  "nuts", 610, 18, 18, 54, ("piece", 3), [("handful", 30), ("serving", 30), ("tablespoon", 10), ("bowl", 50)],
+  "nuts", 610, 18, 18, 54, ("piece", 3),
+  [("handful", 30), ("serving", 30), ("tablespoon", 10), ("bowl", 50), ("glass", 125), ("mug", 150)],
   tags=["magnesium"], singular=["orzech"])
 I("orzechy-wloskie", "orzechy włoskie", ["orzech włoski"], "nuts", 654, 15.2, 13.7, 65.2, ("piece", 5),
-  [("handful", 30), ("serving", 30), ("bowl", 50)], tags=["omega3", "magnesium"], singular=["orzech włoski"])
+  [("handful", 30), ("serving", 30), ("bowl", 50), ("glass", 100), ("mug", 120)], tags=["omega3", "magnesium"],
+  singular=["orzech włoski"])
 I("orzechy-laskowe", "orzechy laskowe", ["orzech laskowy", "laskowe"], "nuts", 628, 15, 16.7, 60.8,
-  ("piece", 1.5), [("handful", 30), ("serving", 30), ("bowl", 50)], tags=["magnesium"], singular=["orzech laskowy"])
+  ("piece", 1.5), [("handful", 30), ("serving", 30), ("bowl", 50), ("glass", 125), ("mug", 150)], tags=["magnesium"],
+  singular=["orzech laskowy"])
 I("nerkowce", "orzechy nerkowca", ["nerkowce", "nerkowiec", "orzech nerkowca"], "nuts", 553, 18, 30, 44,
-  ("piece", 1.6), [("handful", 30), ("serving", 30), ("bowl", 50)], tags=["magnesium", "iron"],
+  ("piece", 1.6), [("handful", 30), ("serving", 30), ("bowl", 50), ("glass", 125), ("mug", 150)],
+  tags=["magnesium", "iron"],
   singular=["nerkowiec", "orzech nerkowca"])
 I("orzeszki-ziemne", "orzeszki ziemne", ["orzeszki", "orzeszki arachidowe", "fistaszki", "orzeszki solone"],
-  "nuts", 585, 24, 21, 50, ("piece", 1), [("handful", 30), ("serving", 30), ("tablespoon", 10), ("bowl", 50)],
+  "nuts", 585, 24, 21, 50, ("piece", 1),
+  [("handful", 30), ("serving", 30), ("tablespoon", 10), ("bowl", 50), ("glass", 125), ("mug", 150)],
   tags=["protein", "magnesium"])
 I("migdaly", "migdały", ["płatki migdałowe"], "nuts", 579, 21, 21.6, 49.9, ("piece", 1.2),
-  [("handful", 30), ("serving", 30), ("tablespoon", 9), ("bowl", 50)], tags=["magnesium", "protein", "calcium"])
+  [("handful", 30), ("serving", 30), ("tablespoon", 9), ("bowl", 50), ("glass", 125), ("mug", 150)],
+  tags=["magnesium", "protein", "calcium"])
 I("pestki-dyni", "pestki dyni", ["pestki z dyni", "pestki dyniowe", "nasiona dyni", "pestki"], "nuts", 559, 30, 10.7, 49,
-  ("tablespoon", 10), [("handful", 30)], tags=["protein", "iron", "magnesium"])
+  ("tablespoon", 10), [("handful", 30), ("bowl", 50), ("glass", 125), ("mug", 150)],
+  tags=["protein", "iron", "magnesium"])
 I("slonecznik", "słonecznik", ["pestki słonecznika", "ziarna słonecznika", "nasiona słonecznika"], "nuts",
-  584, 20.8, 20, 51.5, ("tablespoon", 10), [("handful", 30)], tags=["magnesium"])
+  584, 20.8, 20, 51.5, ("tablespoon", 10), [("handful", 30), ("bowl", 50), ("glass", 125), ("mug", 150)],
+  tags=["magnesium"])
 I("siemie-lniane", "siemię lniane", ["siemię", "siemienia", "siemieniem", "len mielony", "nasiona lnu",
                                      "siemię lniane mielone"],
   "nuts", 534, 18.3, 28.9, 42.2, ("tablespoon", 10), tags=["omega3", "fiber", "magnesium"])
@@ -587,7 +611,10 @@ I("tahini", "tahini", ["pasta tahini", "pasta sezamowa"], "nuts", 595, 17, 21, 5
 I("maslo-orzechowe", "masło orzechowe", ["masło z orzechów ziemnych", "masło orzechowe kremowe",
                                          "masło z orzeszków", "krem orzechowy", "masło migdałowe"],
   "nuts", 588, 25, 20, 50, ("tablespoon", 16), [("teaspoon", 6)], tags=["protein", "magnesium"])
-I("krem-czekoladowy", "krem czekoladowy", ["nutella", "krem czekoladowo-orzechowy", "krem orzechowo-czekoladowy"],
+# "Nutela" is the usual misspelling: written with a capital after another word ("kanapka z Nutelą") it gets
+# no typo guess, like a name.
+I("krem-czekoladowy", "krem czekoladowy", ["nutella", "nutela", "krem czekoladowo-orzechowy",
+                                           "krem orzechowo-czekoladowy"],
   "sweets", 539, 6.3, 57.5, 30.9, ("tablespoon", 15), [("teaspoon", 5)])
 
 # ---------------------------------------------------------------- fats, sauces, condiments
@@ -660,10 +687,12 @@ I("drozdzowka", "drożdżówka", ["bułka słodka", "słodka bułka", "jagodzian
 I("paczek", "pączek", ["pączuś", "donut", "oponka"], "sweets", 395, 6, 50, 19, ("piece", 70))
 I("muffin", "muffin", ["muffinka", "babeczka"], "sweets", 380, 5.5, 50, 17.5, ("piece", 80))
 I("gofr", "gofr", ["gofry", "gofer"], "sweets", 300, 7, 38, 13, ("piece", 80))
+# A bowl or a mug of ice cream is about 150 g, not the 350 g of a bowl of soup or the 300 g of a drink.
 I("lody", "lody", ["lody waniliowe", "lody czekoladowe", "lody śmietankowe", "sorbet", "loda", "lodzik", "lody w waflu",
                    "lody w rożku"],
-  "sweets", 207, 3.5, 23.6, 11, ("serving", 100), [("piece", 60)])
-I("baton", "baton", ["batonik", "batonik czekoladowy", "snickers", "twix", "mars", "kitkat", "prince polo"],
+  "sweets", 207, 3.5, 23.6, 11, ("serving", 100), [("piece", 60), ("bowl", 150), ("mug", 150)])
+I("baton", "baton", ["batonik", "batonik czekoladowy", "snickers", "snikers", "twix", "mars", "kitkat",
+                     "prince polo"],
   "sweets", 480, 6, 60, 23.5, ("piece", 50))
 I("baton-proteinowy", "baton proteinowy", ["batonik proteinowy", "baton białkowy", "batonik białkowy"],
   "sweets", 370, 30, 35, 12, ("piece", 55), tags=["protein"])
@@ -676,18 +705,21 @@ I("budyn", "budyń", ["budyń waniliowy", "budyń czekoladowy", "pudding", "budy
 I("kisiel", "kisiel", [], "sweets", 70, 0, 17.5, 0, ("serving", 200))
 I("galaretka", "galaretka", ["galaretka owocowa"], "sweets", 66, 1.5, 15, 0, ("serving", 150))
 I("chalwa", "chałwa", [], "sweets", 516, 12, 60, 25, ("chunk", 30))
+# A snack bowl of gummies or sweets is about 60 g, a mug of them 150 g.
 I("zelki", "żelki", ["żelek", "żelka", "misie żelki"], "sweets", 343, 6.9, 77, 0.2, ("piece", 3),
-  [("handful", 30), ("serving", 30), ("package", 100)], singular=["żelek", "żelka"])
+  [("handful", 30), ("serving", 30), ("package", 100), ("bowl", 60), ("mug", 150)], singular=["żelek", "żelka"])
 I("cukierki", "cukierki", ["cukierek", "krówki", "krówka", "landrynki", "lizak"], "sweets", 400, 1, 90, 4,
-  ("piece", 8))
+  ("piece", 8), [("bowl", 60), ("mug", 150)])
 I("ptasie-mleczko", "ptasie mleczko", [], "sweets", 440, 3.5, 60, 21, ("piece", 11), [("package", 380)])
-# Snacks: a count means single chips or sticks ("parę chipsów"); a snack bowl is 40-60 g.
+# Snacks: a count means single chips or sticks ("parę chipsów"); a snack bowl is 40-60 g, and a mug (300 ml)
+# holds 12-50 g of them.
 I("chipsy", "chipsy", ["czipsy", "chipsy ziemniaczane", "chrupki", "nachos", "tortilla chips"], "sweets",
-  536, 6.6, 53, 34, ("piece", 2), [("handful", 25), ("serving", 50), ("package", 140), ("bowl", 60)])
+  536, 6.6, 53, 34, ("piece", 2), [("handful", 25), ("serving", 50), ("package", 140), ("bowl", 60), ("mug", 30)])
 I("paluszki", "paluszki", ["paluszki słone", "precelki", "krakersy", "krakers"], "sweets", 380, 11, 75, 4,
-  ("piece", 2), [("handful", 25), ("serving", 30), ("package", 70), ("bowl", 50)], singular=["krakers"])
-I("popcorn", "popcorn", ["popkorn"], "sweets", 450, 8, 58, 21, ("serving", 30), [("package", 90), ("bowl", 40)],
-  tags=["fiber"])
+  ("piece", 2), [("handful", 25), ("serving", 30), ("package", 70), ("bowl", 50), ("mug", 50)],
+  singular=["krakers"])
+I("popcorn", "popcorn", ["popkorn"], "sweets", 450, 8, 58, 21, ("serving", 30),
+  [("package", 90), ("bowl", 40), ("mug", 12)], tags=["fiber"])
 I("precel", "precel", ["obwarzanek", "precel krakowski"], "bread", 340, 10, 68, 3.5, ("piece", 90))
 
 # ---------------------------------------------------------------- drinks
@@ -724,8 +756,9 @@ I("herbata-z-mlekiem", "herbata z mlekiem", ["herbata z mleczkiem"], "drinks", 8
 I("woda", "woda", ["woda mineralna", "woda gazowana", "woda niegazowana", "wodzie", "woda z cytryną",
                    "woda źródlana"],
   "drinks", 0, 0, 0, 0, ("glass", 250), [("can", 500), ("mug", 300)])
+# "sok z 4 pomarańczy" is the juice of the fruit (80 ml each in the parser), not four glasses.
 I("sok", "sok pomarańczowy", ["sok", "sok jabłkowy", "sok owocowy", "sok z pomarańczy", "sok multiwitamina",
-                              "sok grejpfrutowy", "sok wyciskany", "fresh", "sok wiśniowy"],
+                              "sok grejpfrutowy", "sok wyciskany", "fresh", "sok wiśniowy", "sok z jabłek"],
   "drinks", 45, 0.7, 10.4, 0.2, ("glass", 250), [("can", 300)])
 I("sok-pomidorowy", "sok pomidorowy", ["sok warzywny", "sok z pomidorów", "sok marchwiowy", "sok z marchwi"],
   "drinks", 20, 0.8, 4, 0.1, ("glass", 250), [("can", 300)])
@@ -766,7 +799,9 @@ I("mascarpone", "mascarpone", ["ser mascarpone", "serek mascarpone"], "dairy", 4
   ("tablespoon", 20))
 I("ricotta", "ricotta", ["ser ricotta", "serek ricotta"], "dairy", 174, 11, 3, 13, ("tablespoon", 25),
   [("serving", 50)], tags=["protein", "calcium"])
-I("odzywka-bialkowa", "odżywka białkowa", ["odżywka", "białko serwatkowe", "protein", "szejk białkowy",
+# "proteina" is the powder. The bare "protein" on labels of milk, yoghurt and pudding ("mleko protein 500 ml") is
+# no alias, and the parser keeps it from reading as a form of "proteina" (a false friend).
+I("odzywka-bialkowa", "odżywka białkowa", ["odżywka", "proteina", "białko serwatkowe", "szejk białkowy",
                                           "shake białkowy", "koktajl białkowy", "wpc", "koktajl proteinowy",
                                           "shake proteinowy", "szejk proteinowy"],
   "other", 380, 75, 8, 5.5, ("serving", 30), tags=["protein"])

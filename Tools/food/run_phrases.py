@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Runs the phrase sets through the mirror parser and reports the hit rate: a phrase is fully
-recognised when the products come out in order, with the expected amount and unit where given,
-and nothing is left unknown.
-  py -3 Tools/food/run_phrases.py [1] [2] [3] [4] [5] [-v] [--repo]
+recognised when the products come out in order, with the expected amount and unit (and grams) where
+given, and nothing is left unknown.
+  py -3 Tools/food/run_phrases.py [1] [2] [3] [4] [5] [6] [-v] [--repo]
 Sets: 1 = phrases.py, 2 = phrases2.py, 3 = phrases3.py (the hit-rate sets), 4 = phrases4.py (fixes from
-the food review, kept as regressions), 5 = phrases5.py (fresh phrases from the engine check). All five
-when none is named.
+the food review, kept as regressions), 5 = phrases5.py (fresh phrases from the engine check), 6 =
+phrases6.py (the parser review before 0.1.9, kept as regressions). All six when none is named.
 The catalog is catalog_src.py as it is now (what --install would write); --repo uses the installed
 FoodDB.json instead. -v also prints the phrases that pass."""
 import json
@@ -21,6 +21,7 @@ import phrases2  # noqa: E402
 import phrases3  # noqa: E402
 import phrases4  # noqa: E402
 import phrases5  # noqa: E402
+import phrases6  # noqa: E402
 from paths import FOODDB as REPO  # noqa: E402
 
 
@@ -71,16 +72,20 @@ def check(parser, text, want, want_unknown):
                 guess = w.startswith("?")
                 ok = ok and got.food_id == w.lstrip("?") and got.is_guess == guess
             else:
-                wid, amount, unit = w
+                wid, amount, unit = w[:3]
                 ok = ok and got.food_id == wid and abs(got.amount - amount) < 1e-9 and got.unit == unit \
                     and not got.is_guess
+                # ("id", amount, unit, grams) pins the weight too.
+                if len(w) > 3:
+                    ok = ok and abs(got.grams - w[3]) < 1e-9
     return ok, items, unknown
 
 
 def main():
     parser = mp.Parser(chosen_catalog(sys.argv))
     verbose = "-v" in sys.argv
-    sets = {"1": phrases.P, "2": phrases2.P, "3": phrases3.P, "4": phrases4.P, "5": phrases5.P}
+    sets = {"1": phrases.P, "2": phrases2.P, "3": phrases3.P, "4": phrases4.P, "5": phrases5.P,
+            "6": phrases6.P}
     chosen = [a for a in sys.argv[1:] if a in sets] or sorted(sets)
     hits = total = 0
     per_set = []

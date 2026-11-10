@@ -1,12 +1,15 @@
 import SwiftUI
+import UIKit
+import Combine
 import AboutHerCore
 
 /// "nowy produkt": she gives the values of a product once and the app remembers them – also for
 /// the meals already logged with it. "Twój produkt": one of hers, opened again to correct it.
 ///
-/// The sheet saves itself when it closes (swiped down or "gotowe"), but only when something
-/// changed and everything adds up. "anuluj" throws away what she typed. While something she
-/// changed can't be saved yet, the sheet stays open and a gentle line says what is missing.
+/// The sheet saves itself when it closes (swiped down or "gotowe") and when the app goes to the
+/// background, but only when something changed and everything adds up. "anuluj" throws away
+/// what she typed after the last save. While something she changed can't be saved yet, the
+/// sheet stays open and a gentle line says what is missing.
 struct TeachFoodSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -17,7 +20,7 @@ struct TeachFoodSheet: View {
     let existing: FoodItem?
 
     @State private var draft: Draft
-    /// The form as it opened: nothing is saved unless something differs from it.
+    /// The form as it opened, or as it was last saved: nothing is saved unless something differs from it.
     @State private var initial: Draft
     @State private var newID = "user-" + UUID().uuidString.lowercased()
     @State private var isCancelled = false
@@ -51,7 +54,8 @@ struct TeachFoodSheet: View {
     private struct Draft: Equatable {
         var name = ""
         var otherForms = ""
-        var basis: Basis = .portion
+        /// Labels give the values per 100 g, as the footer says; "na porcję" is one tap away.
+        var basis: Basis = .per100g
         var portionUnit: PortionUnit = .serving
         /// Empty at first, so she gives the real weight of her portion.
         var portionGrams = ""
@@ -112,17 +116,21 @@ struct TeachFoodSheet: View {
                     footer("tyle policzę, gdy napiszesz samą nazwę, bez ilości", part: .portion)
                 }
                 Section {
-                    Picker("wartości podaję", selection: $draft.basis) {
-                        Text("na porcję").tag(Basis.portion)
-                        Text("na 100 g").tag(Basis.per100g)
+                    // Her own product opens with its values per 100 g, filled in by me: a switch would
+                    // only change what those same numbers mean, so it is there for a new product only.
+                    if existing == nil {
+                        Picker("wartości podaję", selection: $draft.basis) {
+                            Text("na porcję").tag(Basis.portion)
+                            Text("na 100 g").tag(Basis.per100g)
+                        }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
                     valueField("kcal", text: $draft.kcal, placeholder: "0")
                     valueField("białko (g)", text: $draft.protein, placeholder: "0")
                     valueField("węglowodany (g)", text: $draft.carbs, placeholder: "0")
                     valueField("tłuszcz (g)", text: $draft.fat, placeholder: "0")
                 } header: {
-                    Text("wartości")
+                    Text(verbatim: existing == nil ? "wartości" : "wartości na 100 g")
                         .textCase(nil)
                 } footer: {
                     footer(valuesNote, part: .values)
@@ -158,6 +166,16 @@ struct TeachFoodSheet: View {
         .onDisappear {
             if !isCancelled {
                 commit()
+            }
+        }
+        // In the background the app may be ended before the sheet ever closes: what is ready is
+        // saved and written now, and from then on only a later change is saved again.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            guard !isCancelled, !takesInAnotherProduct else { return }
+            let saved = commit()
+            store.saveNow()
+            if saved {
+                initial = draft
             }
         }
     }
@@ -220,10 +238,22 @@ struct TeachFoodSheet: View {
     }
 
     /// Saves under the same id when correcting, so teachFood replaces the old product and counts
-    /// the meals that used it again. Opening and closing without a change writes nothing.
-    private func commit() {
-        guard hasChanges, case .ready(let item) = outcome else { return }
-        store.teachFood(item)
+    /// the meals that used it again. A new product keeps its id too, so saving it again after a
+    /// save in the background corrects it rather than adding it twice. Opening and closing without
+    /// a change writes nothing. Returns `true` when the store saved it.
+    @discardableResult
+    private func commit() -> Bool {
+        guard hasChanges, case .ready(let item) = outcome else { return false }
+        return store.teachFood(item)
+    }
+
+    /// Another of her products has this name, so saving takes that one in (AppData.teachFood) and
+    /// no later change of the name undoes it. In the background, where the name may be only half
+    /// typed, this waits for the close.
+    private var takesInAnotherProduct: Bool {
+        guard case .ready(let item) = outcome else { return false }
+        let name = FoodText.normalized(item.name)
+        return store.data.userFoods.contains { $0.id != item.id && FoodText.normalized($0.name) == name }
     }
 
     private var outcome: Outcome {
@@ -267,7 +297,10 @@ struct TeachFoodSheet: View {
         // "na porcję" only says what the numbers are for: they are stored per 100 g.
         let factor = draft.basis == .portion ? 100 / portionWeight : 1
         let per100 = Macros(kcal: kcal, protein: grams[0], carbs: grams[1], fat: grams[2]).scaled(by: factor)
-        let kcalLimit = draft.basis == .portion
+        // Saved per portion, her product may hold up to 950 kcal per 100 g; opened again it shows that
+        // value per 100 g, which stays acceptable while she leaves it as it is.
+        let keepsSavedKcal = existing != nil && draft.kcal == initial.kcal
+        let kcalLimit = draft.basis == .portion || keepsSavedKcal
             ? Self.maxKcalPer100 + Self.portionRoundingAllowance
             : Self.maxKcalPer100
         guard per100.kcal <= kcalLimit else {

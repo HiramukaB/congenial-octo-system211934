@@ -25,6 +25,7 @@ import phrases2  # noqa: E402
 import phrases3  # noqa: E402
 import phrases4  # noqa: E402
 import phrases5  # noqa: E402
+import phrases6  # noqa: E402
 
 FOLD = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACELNOSZZ")
 
@@ -81,10 +82,11 @@ def strict_parse(self, text):
     items, unknown = Strict(), []
     start = 0
     n = len(meal.tokens)
+    carried = None
     for k in range(0, n + 1):
         if k == n or meal.tokens[k].kind == "separator":
             if start < k:
-                self.parse_chunk(meal, (start, k), items, unknown)
+                carried = self.parse_chunk(meal, (start, k), carried, items, unknown)
             start = k + 1
     totals = (0.0, 0.0, 0.0, 0.0)
     for it in items:
@@ -103,7 +105,7 @@ max_portion = max(max([f.default[1]] + [g for _, g in f.portions]) for f in cata
 MAX_GRAMS = mp.MAX_AMOUNT * max(1000.0, max_portion, max(mp.GENERIC.values()))
 
 # ---------------------------------------------------------------- vocabularies
-RAW = [text for module in (phrases, phrases2, phrases3, phrases4, phrases5) for text, _, _ in module.P]
+RAW = [text for module in (phrases, phrases2, phrases3, phrases4, phrases5, phrases6) for text, _, _ in module.P]
 FOOD_WORDS = sorted({w for f in catalog for ph in [f.name] + f.aliases for w in ph.split()})
 NUM_WORDS = sorted(mp.NUMBERS)
 UNIT_WORDS = sorted(mp.UNITS)
