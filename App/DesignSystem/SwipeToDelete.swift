@@ -95,7 +95,8 @@ struct SwipeToDelete: ViewModifier {
                 .font(.body)
                 .foregroundStyle(Palette.text)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Palette.red.opacity(0.35), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                // Warm and quiet: removing is a choice she makes, not an alarm.
+                .background(Palette.removeBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

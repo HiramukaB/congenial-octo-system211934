@@ -6,10 +6,10 @@ import AboutHerCore
 /// "nowy produkt": she gives the values of a product once and the app remembers them – also for
 /// the meals already logged with it. "Twój produkt": one of hers, opened again to correct it.
 ///
-/// The sheet saves itself when it closes (swiped down or "gotowe") and when the app goes to the
-/// background, but only when something changed and everything adds up. "anuluj" throws away
-/// what she typed after the last save. While something she changed can't be saved yet, the
-/// sheet stays open and a gentle line says what is missing.
+/// The sheet saves itself when it closes (a swipe down) and when the app goes to the background,
+/// but only when something changed and everything adds up. While something she changed can't be
+/// saved yet, the sheet stays open, a gentle line says what is missing, and "zamknij bez zmian"
+/// at the top leaves everything as it was saved.
 struct TeachFoodSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -24,6 +24,7 @@ struct TeachFoodSheet: View {
     @State private var initial: Draft
     @State private var newID = "user-" + UUID().uuidString.lowercased()
     @State private var isCancelled = false
+    @ScaledMetric(relativeTo: .title3) private var fieldWidth: CGFloat = FoodFieldSize.width
 
     /// No food has more than 900 kcal in 100 g (pure fat).
     private static let maxKcalPer100: Double = 900
@@ -54,7 +55,7 @@ struct TeachFoodSheet: View {
     private struct Draft: Equatable {
         var name = ""
         var otherForms = ""
-        /// Labels give the values per 100 g, as the footer says; "na porcję" is one tap away.
+        /// Labels give the values per 100 g, as the card says; "na porcję" is one tap away.
         var basis: Basis = .per100g
         var portionUnit: PortionUnit = .serving
         /// Empty at first, so she gives the real weight of her portion.
@@ -78,7 +79,7 @@ struct TeachFoodSheet: View {
         }
     }
 
-    /// The section whose footer shows a hint.
+    /// The card whose line shows a hint.
     private enum Part {
         case name, portion, values
     }
@@ -91,77 +92,62 @@ struct TeachFoodSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("nazwa", text: $draft.name)
-                    TextField("inne formy, np. pierogów, pierogami", text: $draft.otherForms)
-                } footer: {
-                    footer(existing == nil
-                           ? "podaj wartości raz, a zapamiętam je na przyszłość. Policzę je też w posiłkach, które już zapisałaś"
-                           : "gdy coś tu poprawisz, przeliczę też posiłki, które już zapisałaś",
-                           part: .name)
+        FoodSheetPage {
+            ScreenHeader(title: title,
+                         subtitle: existing == nil
+                            ? "zapamiętam go i policzę też w posiłkach, które już zapisałaś"
+                            : "gdy coś tu poprawisz, przeliczę też posiłki, które już zapisałaś")
+            if isBlocked {
+                FoodUnsavedNote {
+                    isCancelled = true
+                    dismiss()
                 }
-                Section {
-                    Picker("porcja to", selection: $draft.portionUnit) {
-                        ForEach(PortionUnit.allCases, id: \.self) { unit in
-                            Text(unit.label).tag(unit)
-                        }
+            }
+            Card {
+                VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                    FoodTextField("nazwa", text: $draft.name)
+                    FoodTextField("inne formy", text: $draft.otherForms, placeholder: "np. pierogów, pierogami")
+                    problemLine(for: .name)
+                }
+            }
+            Card {
+                VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                    SectionHeader("porcja", subtitle: "tyle policzę, gdy napiszesz samą nazwę, bez ilości")
+                    VStack(spacing: Spacing.tight) {
+                        unitRow
+                        FoodNumberRow("waga porcji", text: $draft.portionGrams, placeholder: "np. 250", unit: "g")
                     }
-                    valueField("waga porcji (g)", text: $draft.portionGrams, placeholder: "np. 250")
-                } header: {
-                    Text("porcja")
-                        .textCase(nil)
-                } footer: {
-                    footer("tyle policzę, gdy napiszesz samą nazwę, bez ilości", part: .portion)
+                    problemLine(for: .portion)
                 }
-                Section {
+            }
+            Card {
+                VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                    SectionHeader(existing == nil ? "wartości" : "wartości na 100 g",
+                                  subtitle: "znajdziesz je na opakowaniu, zwykle na 100 g")
                     // Her own product opens with its values per 100 g, filled in by me: a switch would
                     // only change what those same numbers mean, so it is there for a new product only.
                     if existing == nil {
-                        Picker("wartości podaję", selection: $draft.basis) {
-                            Text("na porcję").tag(Basis.portion)
-                            Text("na 100 g").tag(Basis.per100g)
-                        }
-                        .pickerStyle(.segmented)
+                        ChoiceTiles(options: [Basis.per100g, Basis.portion],
+                                    selection: draft.basis,
+                                    columns: 2,
+                                    label: { $0 == .per100g ? "na 100 g" : "na porcję" },
+                                    onSelect: { draft.basis = $0 })
                     }
-                    valueField("kcal", text: $draft.kcal, placeholder: "0")
-                    valueField("białko (g)", text: $draft.protein, placeholder: "0")
-                    valueField("węglowodany (g)", text: $draft.carbs, placeholder: "0")
-                    valueField("tłuszcz (g)", text: $draft.fat, placeholder: "0")
-                } header: {
-                    Text(verbatim: existing == nil ? "wartości" : "wartości na 100 g")
-                        .textCase(nil)
-                } footer: {
-                    footer(valuesNote, part: .values)
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Palette.background)
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("anuluj") {
-                        isCancelled = true
-                        dismiss()
+                    VStack(spacing: Spacing.tight) {
+                        FoodNumberRow("kcal", text: $draft.kcal, placeholder: "0", unit: "kcal")
+                        FoodNumberRow("białko", text: $draft.protein, placeholder: "0", unit: "g")
+                        FoodNumberRow("węglowodany", text: $draft.carbs, placeholder: "0", unit: "g")
+                        FoodNumberRow("tłuszcz", text: $draft.fat, placeholder: "0", unit: "g")
                     }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    // Closing saves (see onDisappear), so "gotowe" only closes.
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "checkmark")
+                    if let item = readyItem {
+                        ConfirmationNote(text: portionSummary(item))
                     }
-                    .accessibilityLabel("gotowe")
-                    .disabled(isBlocked)
+                    problemLine(for: .values)
                 }
             }
         }
-        .presentationDetents([.large])
         // A change that can't be saved yet keeps the sheet open, so nothing she typed is lost
-        // by a swipe; "anuluj" still closes it.
+        // by a swipe; "zamknij bez zmian" still closes it.
         .interactiveDismissDisabled(isBlocked)
         .onDisappear {
             if !isCancelled {
@@ -184,22 +170,49 @@ struct TeachFoodSheet: View {
         existing == nil ? "nowy produkt" : "Twój produkt"
     }
 
-    private func valueField(_ label: String, text: Binding<String>, placeholder: String) -> some View {
-        LabeledContent(label) {
-            TextField(placeholder, text: text)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
+    // MARK: - Parts
+
+    /// "porcja to [porcja ⌃⌄]": the unit a bare name counts as, picked from a menu.
+    private var unitRow: some View {
+        HStack(spacing: Spacing.item) {
+            Text("porcja to")
+                .rowTitle()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(true)
+            Menu {
+                Picker("porcja to", selection: $draft.portionUnit) {
+                    ForEach(PortionUnit.allCases, id: \.self) { unit in
+                        Text(unit.label).tag(unit)
+                    }
+                }
+            } label: {
+                HStack(spacing: Spacing.tight) {
+                    Text(draft.portionUnit.label)
+                        .font(.body)
+                        .foregroundStyle(Palette.text)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Palette.accent)
+                        .accessibilityHidden(true)
+                }
+                .fieldBox()
+            }
+            .frame(width: fieldWidth)
+            .accessibilityLabel("porcja to")
+            .accessibilityValue(Text(draft.portionUnit.label))
         }
+        .frame(minHeight: TapSize.large)
     }
 
-    /// The section's own note and, when the first problem is in this section, a line about it.
-    private func footer(_ note: String, part: Part) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(polish: note)
-            if let hint = hintText(for: part) {
-                Text(polish: hint)
-                    .foregroundStyle(Palette.accent)
-            }
+    /// The first thing that still needs her, under the card it belongs to.
+    @ViewBuilder
+    private func problemLine(for part: Part) -> some View {
+        if let hint = hintText(for: part) {
+            Text(polish: hint)
+                .font(.footnote)
+                .foregroundStyle(Palette.accent)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -208,15 +221,19 @@ struct TeachFoodSheet: View {
         return hint
     }
 
-    /// Where the values come from and, once everything adds up, what one portion counts as.
-    private var valuesNote: String {
-        var note = "wartości znajdziesz na opakowaniu – zwykle na 100 g"
+    /// The product, once everything adds up.
+    private var readyItem: FoodItem? {
         if case .ready(let item) = outcome {
-            let portion = item.defaultPortion
-            let kcal = FoodFormat.whole(item.macros(grams: portion.grams).kcal)
-            note += ". 1 \(portion.unit.label) to \(FoodFormat.compact(portion.grams)) g, ok. \(kcal) kcal"
+            return item
         }
-        return note
+        return nil
+    }
+
+    /// "1 porcja to 250 g, ok. 300 kcal".
+    private func portionSummary(_ item: FoodItem) -> String {
+        let portion = item.defaultPortion
+        let kcal = FoodFormat.whole(item.macros(grams: portion.grams).kcal)
+        return "1 \(portion.unit.label) to \(FoodFormat.compact(portion.grams)) g, ok. \(kcal) kcal"
     }
 
     // MARK: - Saving

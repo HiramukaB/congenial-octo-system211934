@@ -1,7 +1,8 @@
 import SwiftUI
 import AboutHerCore
 
-/// Typical cycle and period length, with an honest note when cycles vary a lot or are long.
+/// Her typical cycle and period length; when her cycles vary a lot or are long, an honest note
+/// on tap.
 struct CycleStatsCard: View {
     let stats: CycleStats
     /// How many periods are marked; with two or more but no countable cycle, the gaps are too long.
@@ -9,15 +10,15 @@ struct CycleStatsCard: View {
 
     var body: some View {
         Card {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Twój rytm").sectionTitle()
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("Twój rytm")
                 if stats.cycleLengths.isEmpty {
                     Text(polish: periodCount >= 2
-                         ? "między zaznaczonymi okresami są zbyt długie przerwy. Zaznacz dwa kolejne okresy, a policzę Twój typowy cykl"
+                         ? "między zaznaczonymi okresami są długie przerwy. Zaznacz dwa kolejne, a policzę Twój typowy cykl"
                          : "zaznacz przynajmniej dwa okresy, a policzę Twój typowy cykl")
                         .bodyText()
                 } else {
-                    HStack(alignment: .top, spacing: 12) {
+                    HStack(alignment: .top, spacing: Spacing.item) {
                         StatTile(label: "typowy cykl",
                                  value: PolishPlural.days(stats.typicalCycleLength),
                                  detail: cycleRange)
@@ -29,10 +30,7 @@ struct CycleStatsCard: View {
                         }
                     }
                     if stats.isIrregular || (stats.longestCycle ?? 0) > 38 {
-                        Text(polish: rhythmNote)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.muted)
-                            .fixedSize(horizontal: false, vertical: true)
+                        MoreInfo("o Twoich cyklach", text: rhythmNote)
                     }
                 }
             }
@@ -59,17 +57,15 @@ struct StatTile: View {
     let detail: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Spacing.hairline) {
             Text(label)
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
+                .rowDetail()
             Text(value)
-                .displayFont(22, weight: .medium, relativeTo: .title2)
+                .displayFont(26, weight: .medium, relativeTo: .title2)
                 .foregroundStyle(Palette.text)
             if let detail {
                 Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(Palette.muted)
+                    .hintText()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -77,9 +73,14 @@ struct StatTile: View {
     }
 }
 
-/// Past periods, newest first, with the length of the cycle that followed each one.
+/// Past periods, newest first, with the length of the cycle that followed each one. The last few
+/// show; the rest on tap.
 struct PeriodHistoryCard: View {
     let periods: [PeriodRange]
+    @State private var showsAll = false
+
+    /// How many periods show before "pokaż wszystkie".
+    private static let recentCount = 6
 
     nonisolated struct Row: Identifiable {
         let period: PeriodRange
@@ -93,42 +94,44 @@ struct PeriodHistoryCard: View {
                 ? "cykl \(PolishPlural.days(cycleLength))"
                 : "przerwa w zapisach"
         }
+
+        /// "21–25 paź · 5 dni"
+        var title: String {
+            "\(PolishDate.range(period.start, period.end)) · \(PolishPlural.days(period.length))"
+        }
     }
 
     var body: some View {
         let rows = makeRows()
-        Card {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("historia okresów")
-                    .sectionTitle()
-                    .padding(.bottom, 6)
+        let shown = showsAll ? rows : Array(rows.prefix(Self.recentCount))
+        let moreLabel: String = showsAll ? "pokaż mniej" : "pokaż wszystkie (\(rows.count))"
+        Card(style: .quiet) {
+            VStack(alignment: .leading, spacing: Spacing.item) {
+                SectionHeader("historia okresów")
                 if rows.isEmpty {
                     Text(polish: "tu pojawią się Twoje okresy, gdy zaznaczysz je w kalendarzu")
                         .bodyText()
                 } else {
-                    ForEach(rows) { row in
-                        HStack(spacing: 10) {
-                            Circle()
-                                .fill(CyclePhase.menstrual.tint)
-                                .frame(width: 6, height: 6)
-                                .accessibilityHidden(true)
-                            Text("\(PolishDate.range(row.period.start, row.period.end)) · \(PolishPlural.days(row.period.length))")
-                                .font(.subheadline)
-                                .foregroundStyle(Palette.text2)
-                            Spacer()
-                            if let label = row.cycleLabel {
-                                Text(label)
-                                    .font(.caption)
-                                    .foregroundStyle(Palette.muted)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(shown) { row in
+                            if row.id != shown.first?.id {
+                                RowDivider()
+                            }
+                            ListRow(row.title) {
+                                if let label = row.cycleLabel {
+                                    Text(label)
+                                        .rowDetail()
+                                }
                             }
                         }
-                        .padding(.vertical, 10)
-                        .accessibilityElement(children: .combine)
-                        if row.id != rows.last?.id {
-                            Rectangle()
-                                .fill(Palette.line)
-                                .frame(height: 1)
+                    }
+                    if rows.count > Self.recentCount {
+                        Button(moreLabel) {
+                            withAnimation(.smooth(duration: 0.25)) {
+                                showsAll.toggle()
+                            }
                         }
+                        .buttonStyle(LinkButtonStyle())
                     }
                 }
             }

@@ -106,8 +106,11 @@ ani danych, jeśli to ten sam Apple ID), a potem w AltStore Refresh All.
 - Baza produktów (`FoodDB.json`) jest generowana z `Tools/food/catalog_src.py`, a zmiany parsera
   posiłków idą krok w krok z `Tools/food/meal_port.py` – szczegóły i sprawdzenia przed commitem
   w [Tools/food/README.md](Tools/food/README.md).
+- Zasady wyglądu i komponenty wspólne dla wszystkich ekranów: [App/DesignSystem/DESIGN.md](App/DesignSystem/DESIGN.md).
 - Argumenty uruchomienia:
-  - `-demoData` – fikcyjna historia, nic nie zapisuje;
+  - `-demoData` – fikcyjna historia, nic nie zapisuje (powitanie uznane za ukończone);
+  - `-showOnboarding` – powitanie (pierwsza konfiguracja) na fikcyjnej historii, do zrzutów ekranu;
+  - `-skipOnboarding` – bez powitania, np. w teście zapisu danych na czystym symulatorze;
   - `-startTab calendar` – otwiera wybraną zakładkę (`today`, `calendar`, `food`, `movement`, `me`);
   - `-stillBackground` – nieruchome tło (testy UI: animowane tło nie pozwala aplikacji „odpocząć”,
     przez co automatyczne dotknięcia są wolne i niestabilne).

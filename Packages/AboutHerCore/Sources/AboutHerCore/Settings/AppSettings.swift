@@ -1,24 +1,30 @@
 import Foundation
 
-/// Her settings: local reminders and the lock. Everything is off until she turns it on.
+/// Her settings: local reminders, the lock and her first steps in the app (her name, the welcome,
+/// the guide). Everything is off until she turns it on.
 public struct AppSettings: Codable, Sendable, Hashable {
     public var reminders: ReminderSettings
     /// Face ID (or the passcode) before her data shows, and a cover in the app switcher.
     public var isLockEnabled: Bool
+    /// Schema 4: her name, the welcome steps and the guide.
+    public var onboarding: OnboardingState
 
-    public init(reminders: ReminderSettings = ReminderSettings(), isLockEnabled: Bool = false) {
+    public init(reminders: ReminderSettings = ReminderSettings(), isLockEnabled: Bool = false,
+                onboarding: OnboardingState = OnboardingState()) {
         self.reminders = reminders
         self.isLockEnabled = isLockEnabled
+        self.onboarding = onboarding
     }
 
     enum CodingKeys: String, CodingKey {
-        case reminders, isLockEnabled
+        case reminders, isLockEnabled, onboarding
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         reminders = try container.decodeIfPresent(ReminderSettings.self, forKey: .reminders) ?? ReminderSettings()
         isLockEnabled = try container.decodeIfPresent(Bool.self, forKey: .isLockEnabled) ?? false
+        onboarding = try container.decodeIfPresent(OnboardingState.self, forKey: .onboarding) ?? OnboardingState()
     }
 }
 

@@ -38,12 +38,19 @@ final class AppStore {
         self.today = today
     }
 
-    /// The real store, or – with the "-demoData" launch argument – a fictional history kept only in memory.
+    /// The real store, or – with "-demoData" or "-showOnboarding" (`LaunchArguments`) – a fictional
+    /// history kept only in memory.
     static func makeDefault() -> AppStore {
-        if ProcessInfo.processInfo.arguments.contains("-demoData") {
+        if LaunchArguments.usesDemoData {
             let demoPhotos = FileManager.default.temporaryDirectory
                 .appending(path: "AboutHer-demo-photos", directoryHint: .isDirectory)
-            return AppStore(data: DemoData.make(today: .today()), persistence: nil, photosDirectory: demoPhotos)
+            var demo = DemoData.make(today: .today())
+            if LaunchArguments.showsOnboarding {
+                // The welcome on top of data that is already there, as after an update on her phone.
+                demo.settings.onboarding.completedAt = nil
+                demo.settings.onboarding.hasSeenTutorial = false
+            }
+            return AppStore(data: demo, persistence: nil, photosDirectory: demoPhotos)
         }
         let live = Persistence.live()
         let store = AppStore(data: AppData(), persistence: nil, photosDirectory: live.photosDirectory)
@@ -56,12 +63,22 @@ final class AppStore {
         CycleEngine(periodDays: data.periodDays, today: today)
     }
 
+    /// Her data has been read and can be changed: false while her file is unread and in read-only
+    /// mode. Unlike `change`, asking never shows her anything.
+    ///
+    /// What it reads isn't observed, but it only ever changes together with `data` or `problem`
+    /// (or before the first screen is drawn), so views that read it are redrawn in time.
+    var isEditable: Bool {
+        unreadPersistence == nil && readOnlyReason == nil
+    }
+
     // MARK: - Changes
 
     /// Makes one change to her data and saves it shortly after, like every change in the app.
     /// Refused (returns `false`) while her file hasn't been read and in read-only mode – she is
     /// told why. A change that changes nothing isn't saved. The features' own extensions
-    /// (AppStore+Symptoms, +Settings, +Movement, +Inner, +Moment) make their changes through it.
+    /// (AppStore+Symptoms, +Settings, +Movement, +Inner, +Moment, +Onboarding, +Humor) make their
+    /// changes through it.
     @discardableResult
     func change(_ body: (inout AppData) -> Void) -> Bool {
         guard canEdit() else { return false }

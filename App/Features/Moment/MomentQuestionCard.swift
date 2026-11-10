@@ -1,60 +1,63 @@
 import SwiftUI
 import AboutHerCore
 
-/// "pytanie do przemyślenia": one card from the deck. The star draws the next one – no card comes
-/// back before the whole deck has been drawn. Her answer is kept with the question and the date.
+/// "pytanie do przemyślenia": one card from the deck. "inne pytanie" draws the next one – no card
+/// comes back before the whole deck has been drawn. Her answer is kept with the question and the
+/// day in "Twoje zapiski".
 struct MomentQuestionCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Where she is in the deck.
     @Binding var position: Int
     @State private var isWriting = false
-    /// She has just answered; shown until she draws the next card.
+    /// She has just answered; shown until she draws the next card or writes again.
     @State private var hasSaved = false
-    /// How far the card is turned while the next one is drawn: 0 facing her, 90 edge on.
+    /// How far the question is turned while the next one is drawn: 0 facing her, 90 edge on.
     @State private var turn: Double = 0
     @State private var isDrawing = false
 
     var body: some View {
         let question = QuestionDeck.question(at: position)
+        let number = QuestionDeck.cardNumber(at: position)
+        let count = QuestionDeck.questions.count
         Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("pytanie do przemyślenia").sectionTitle()
-                    Spacer()
-                    // Hidden while she writes, so her answer stays with the question she sees.
-                    if !isWriting {
-                        StarButton(label: "wyciągnij kolejną kartę", action: draw)
-                    }
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("pytanie do przemyślenia") {
+                    Text(verbatim: "\(number) z \(count)")
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(Palette.muted)
+                        .accessibilityLabel(Text(verbatim: "karta \(number) z \(count)"))
                 }
-                MomentQuestionFace(question: question,
-                                   number: QuestionDeck.cardNumber(at: position),
-                                   count: QuestionDeck.questions.count)
+                MomentQuestionFace(question: question)
                     .rotation3DEffect(.degrees(turn), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
                 if isWriting {
                     MomentNoteField(target: .new(kind: .answer, prompt: question),
                                     placeholder: "napisz, co przychodzi Ci do głowy",
-                                    hint: "zapiszę Twoją odpowiedź razem z pytaniem, gdy schowasz klawiaturę",
+                                    hint: "zapiszę ją razem z pytaniem, gdy schowasz klawiaturę",
                                     onClose: { saved in
-                                        isWriting = false
-                                        hasSaved = saved
+                                        withAnimation(.smooth) {
+                                            isWriting = false
+                                            hasSaved = saved
+                                        }
                                     })
                 } else {
                     if hasSaved {
-                        Text(polish: "zapisałam ją w Twoich zapiskach, na dole")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.accent)
+                        ConfirmationNote(text: "zapisałam ją w Twoich zapiskach")
                     }
-                    Button("odpowiedz na to pytanie") {
-                        hasSaved = false
-                        isWriting = true
+                    MomentActionRow {
+                        StarActionButton("odpowiedz", size: .regular, action: startWriting)
+                        StarActionButton("inne pytanie", size: .regular, action: draw)
                     }
-                    .buttonStyle(LinkButtonStyle())
                 }
             }
         }
     }
 
-    /// The card turns edge on, the next one takes its place and turns to face her.
+    private func startWriting() {
+        hasSaved = false
+        isWriting = true
+    }
+
+    /// The question turns edge on, the next one takes its place and turns to face her.
     private func draw() {
         guard !isDrawing else { return }
         hasSaved = false
@@ -79,20 +82,16 @@ struct MomentQuestionCard: View {
     }
 }
 
-/// The face of a question card: the app's star above the question and a smaller one below,
-/// on a card of the app's own colours.
-struct MomentQuestionFace: View {
+/// The question itself, framed by the app's star above and a smaller one below – the face of
+/// the card, right on the card (no card inside a card).
+private struct MomentQuestionFace: View {
     let question: String
-    /// Which card of the deck this is, of `count`.
-    let number: Int
-    let count: Int
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
-        VStack(spacing: 16) {
+        VStack(spacing: Spacing.item) {
             OrganicStar()
                 .fill(Palette.accent)
-                .frame(width: 18, height: 18)
+                .frame(width: 16, height: 16)
                 .accessibilityHidden(true)
             Text(polish: question)
                 .displayFont(21, italic: true, relativeTo: .title3)
@@ -102,27 +101,10 @@ struct MomentQuestionFace: View {
                 .contentTransition(.opacity)
             OrganicStar()
                 .fill(Palette.accentDim.opacity(0.6))
-                .frame(width: 10, height: 10)
+                .frame(width: 9, height: 9)
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 28)
-        .frame(maxWidth: .infinity, minHeight: 200)
-        .background {
-            shape.fill(LinearGradient(colors: [Palette.accentBackground, Palette.card.opacity(0.9)],
-                                      startPoint: .top, endPoint: .bottom))
-        }
-        .overlay {
-            shape.strokeBorder(Palette.accent.opacity(0.25), lineWidth: 1)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            Text(verbatim: "\(number) / \(count)")
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(Palette.muted)
-                .padding(12)
-                // VoiceOver would read the slash.
-                .accessibilityLabel(Text(verbatim: "karta \(number) z \(count)"))
-        }
-        .accessibilityElement(children: .combine)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Spacing.tight)
     }
 }

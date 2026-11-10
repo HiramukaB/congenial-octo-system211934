@@ -200,12 +200,13 @@ final class ScreenshotTests: XCTestCase {
 }
 
 /// The path her phone really takes: real storage (no demo data), a change, leaving the app,
-/// a cold start that reads the saved file back.
+/// a cold start that reads the saved file back. "-skipOnboarding" keeps the welcome steps away
+/// on the fresh simulator, without writing anything about them.
 final class StorageTests: XCTestCase {
     @MainActor
     func testAMarkedDaySurvivesARestart() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-stillBackground", "-startTab", "calendar"]
+        app.launchArguments = ["-skipOnboarding", "-stillBackground", "-startTab", "calendar"]
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15), "the app did not start")
 

@@ -3,6 +3,7 @@ import Charts
 import AboutHerCore
 
 /// "waga": a weekly weigh-in and a smoothed trend line – the line matters, not a single number.
+/// The trend leads, big; then the line, the last weigh-in and, on tap, all the others.
 ///
 /// The field saves itself: on "gotowe", when she leaves it, when the shown day changes and when
 /// the app goes to the background. It always saves to its own day – the shown day, or the
@@ -18,76 +19,46 @@ struct WeightCard: View {
     /// The last number she typed couldn't be a weight.
     @State private var wasRejected = false
     @FocusState private var isFocused: Bool
+    /// Every weigh-in is listed; otherwise only the last one.
+    @State private var showsAll = false
+    /// Counts the weigh-ins saved here, for one soft haptic each.
+    @State private var saves = 0
 
     var body: some View {
         let points = store.weightPoints
         Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("waga").sectionTitle()
-                    Spacer()
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("waga") {
                     if editingDay == nil {
-                        StarButton(label: "dodaj pomiar", prominent: true, action: { startTyping(for: day) })
+                        StarActionButton("dodaj pomiar", size: .regular) {
+                            startTyping(for: day)
+                        }
                     }
                 }
-                Text(polish: "waż się raz w tygodniu, o podobnej porze. Wahania rzędu 1–2 kg z dnia na dzień to woda i faza cyklu, nie Twoja praca – dlatego patrzymy na linię, nie na pojedynczy pomiar")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
                 if let editingDay {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        TextField("np. 64,5", text: $draft)
-                            .keyboardType(.numbersAndPunctuation)
-                            .submitLabel(.done)
-                            .focused($isFocused)
-                            .onSubmit { save() }
-                            .font(.title3.monospacedDigit())
-                            .foregroundStyle(Palette.text)
-                            .frame(maxWidth: 120)
-                            // In case the focus asked for together with showing the field didn't take.
-                            .onAppear { isFocused = true }
-                        Text("kg · \(PolishDate.dayMonth(editingDay))")
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.muted)
-                    }
+                    field(for: editingDay)
                 }
                 if wasRejected {
                     Text(polish: "tego nie zapiszę – wpisz wagę w kilogramach, np. 64,5")
                         .font(.footnote)
                         .foregroundStyle(Palette.accent)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if let last = points.last {
-                    summary(points: points, last: last)
+                    trend(points: points, last: last)
                     if points.count >= 2 {
                         WeightChart(points: points)
                     }
-                    ForEach(points.suffix(6).reversed(), id: \.day) { point in
-                        HStack {
-                            Text(PolishDate.dayMonth(point.day))
-                                .font(.subheadline)
-                                .foregroundStyle(Palette.text2)
-                            Spacer()
-                            Text("\(FoodFormat.number(point.kg)) kg")
-                                .font(.subheadline.monospacedDigit())
-                                .foregroundStyle(Palette.text)
-                        }
-                        .padding(.vertical, 6)
-                        .contentShape(Rectangle())
-                        // Tap to correct it, swipe left to delete it.
-                        .swipeToDelete(label: "usuń pomiar", onTap: { startTyping(for: point.day) }) {
-                            if editingDay == point.day {
-                                // The open field must not bring the deleted weigh-in back.
-                                closeField()
-                            }
-                            store.removeWeight(on: point.day)
-                        }
-                    }
+                    weighIns(points)
+                    MoreInfo("dlaczego linia trendu?",
+                             text: "waż się raz w tygodniu, o podobnej porze. Wahania rzędu 1–2 kg z dnia na dzień to woda i faza cyklu, nie Twoja praca – dlatego patrzymy na linię, nie na pojedynczy pomiar")
                 } else if editingDay == nil {
-                    Text(polish: "tu pojawi się linia trendu, gdy zapiszesz pierwsze pomiary")
-                        .bodyText()
+                    EmptyState(title: "tu pojawi się linia trendu",
+                               message: "waż się raz w tygodniu, o podobnej porze")
                 }
             }
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: saves)
         .onChange(of: isFocused) { _, focused in
             if !focused {
                 save()
@@ -111,29 +82,135 @@ struct WeightCard: View {
         }
     }
 
-    @ViewBuilder
-    private func summary(points: [WeightPoint], last: WeightPoint) -> some View {
-        // The trend is what her targets use, so it leads; the last weigh-in is secondary.
-        let trend = WeightTrend.trend(on: store.today, in: points) ?? last.trend
-        VStack(alignment: .leading, spacing: 3) {
-            Text("linia trendu: \(FoodFormat.number(trend)) kg")
-                .font(.headline.monospacedDigit())
+    // MARK: - Parts
+
+    /// The open field: the number large, and the day it saves to.
+    private func field(for target: LocalDate) -> some View {
+        let unitAndDay: String = target == store.today ? "kg · dziś" : "kg · \(PolishDate.dayMonth(target))"
+        return HStack(alignment: .firstTextBaseline, spacing: Spacing.tight) {
+            TextField("np. 64,5", text: $draft)
+                .keyboardType(.numbersAndPunctuation)
+                .submitLabel(.done)
+                .focused($isFocused)
+                .onSubmit { save() }
+                .font(.title2.monospacedDigit())
                 .foregroundStyle(Palette.text)
-            Text("ostatni pomiar: \(FoodFormat.number(last.kg)) kg (\(PolishDate.short(last.day)))")
-                .font(.footnote)
-                .foregroundStyle(Palette.text2)
-            if let sinceStart = WeightTrend.changeSinceStart(in: points) {
-                Text("linia trendu od początku: \(FoodFormat.signed(sinceStart)) kg")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.text2)
+                .accessibilityLabel(Text("waga w kilogramach"))
+                // In case the focus asked for together with showing the field didn't take.
+                .onAppear { isFocused = true }
+            Text(unitAndDay)
+                .rowDetail()
+        }
+        .fieldBox()
+        .contentShape(Rectangle())
+        .simultaneousGesture(TapGesture().onEnded {
+            isFocused = true
+        })
+    }
+
+    /// The trend is what her targets use, so it leads, big; how it moved sits beside it.
+    @ViewBuilder
+    private func trend(points: [WeightPoint], last: WeightPoint) -> some View {
+        let trendKg = WeightTrend.trend(on: store.today, in: points) ?? last.trend
+        let month = WeightTrend.change(in: points, overDays: 28, endingAt: store.today)
+        let sinceStart = WeightTrend.changeSinceStart(in: points)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: Spacing.item) {
+                trendNumber(trendKg)
+                Spacer(minLength: Spacing.item)
+                changes(month: month, sinceStart: sinceStart, alignment: .trailing)
             }
-            if let month = WeightTrend.change(in: points, overDays: 28, endingAt: store.today) {
-                Text("ostatnie 4 tygodnie: \(FoodFormat.signed(month)) kg")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.text2)
+            VStack(alignment: .leading, spacing: Spacing.item) {
+                trendNumber(trendKg)
+                changes(month: month, sinceStart: sinceStart, alignment: .leading)
             }
         }
     }
+
+    private func trendNumber(_ trend: Double) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.hairline) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.hairline) {
+                Text(verbatim: FoodFormat.number(trend))
+                    .bigNumber()
+                Text("kg")
+                    .font(.title3)
+                    .foregroundStyle(Palette.text2)
+            }
+            Text("linia trendu")
+                .rowDetail()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: "linia trendu: \(FoodFormat.number(trend)) kg"))
+    }
+
+    /// "−0,8 kg w 4 tygodnie" and "−1,1 kg od początku", when there is enough to say them.
+    @ViewBuilder
+    private func changes(month: Double?, sinceStart: Double?, alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: Spacing.item) {
+            if let month {
+                change(value: month, label: "w 4 tygodnie", alignment: alignment)
+            }
+            if let sinceStart {
+                change(value: sinceStart, label: "od początku", alignment: alignment)
+            }
+        }
+    }
+
+    private func change(value: Double, label: String, alignment: HorizontalAlignment) -> some View {
+        let text = "\(FoodFormat.signed(value)) kg"
+        return VStack(alignment: alignment, spacing: 2) {
+            Text(verbatim: text)
+                .valueText()
+            Text(label)
+                .rowDetail()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: "\(label): \(text)"))
+    }
+
+    /// The last weigh-in, or all of them, newest first. Tap one to correct it, swipe left to delete it.
+    private func weighIns(_ points: [WeightPoint]) -> some View {
+        let newestFirst = Array(points.reversed())
+        let shown = showsAll ? newestFirst : Array(newestFirst.prefix(1))
+        let toggleTitle: String = showsAll ? "zwiń" : "wszystkie pomiary (\(points.count))"
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(shown.enumerated()), id: \.element.day) { index, point in
+                if index > 0 {
+                    RowDivider()
+                }
+                ListRow(PolishDate.dayMonth(point.day), detail: index == 0 ? "ostatni pomiar" : nil) {
+                    Text(verbatim: "\(FoodFormat.number(point.kg)) kg")
+                        .valueText()
+                }
+                .swipeToDelete(label: "usuń pomiar", onTap: { startTyping(for: point.day) }) {
+                    if editingDay == point.day {
+                        // The open field must not bring the deleted weigh-in back.
+                        closeField()
+                    }
+                    store.removeWeight(on: point.day)
+                }
+            }
+            if points.count > 1 {
+                Button {
+                    withAnimation(.smooth(duration: 0.25)) {
+                        showsAll.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(toggleTitle)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .rotationEffect(.degrees(showsAll ? 180 : 0))
+                            .accessibilityHidden(true)
+                    }
+                }
+                .buttonStyle(LinkButtonStyle(font: .footnote.weight(.medium)))
+                .padding(.top, Spacing.tight)
+            }
+        }
+    }
+
+    // MARK: - Saving
 
     /// Opens the field for `target`, pre-filled with its weigh-in. A field already open for
     /// another day is saved first.
@@ -165,7 +242,9 @@ struct WeightCard: View {
             return
         }
         wasRejected = false
-        store.setWeight(kilograms, on: target)
+        if store.setWeight(kilograms, on: target) {
+            saves += 1
+        }
     }
 
     private func closeField() {
@@ -224,7 +303,7 @@ struct WeightChart: View {
                 AxisValueLabel()
             }
         }
-        .frame(height: 140)
+        .frame(height: 150)
         .accessibilityLabel("wykres wagi z linią trendu")
     }
 

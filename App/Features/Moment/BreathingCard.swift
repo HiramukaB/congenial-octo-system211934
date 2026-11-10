@@ -1,98 +1,129 @@
 import SwiftUI
 import UIKit
 
-/// "oddech": four seconds in, six seconds out, for three minutes. The star grows with each breath
-/// in and shrinks with each breath out, with a soft tap at every change. A tap on the star stops it
-/// at any moment; leaving the screen or the app stops it too. The screen stays on meanwhile.
+/// "oddech": four seconds in, six seconds out, for three minutes. "zacznij" opens the exercise on
+/// a calm screen of its own, so nothing else moves or asks for her attention meanwhile.
 struct BreathingCard: View {
+    @State private var isBreathing = false
+    /// She breathed the whole three minutes on this visit.
+    @State private var hasFinished = false
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("oddech", subtitle: "4 sekundy wdechu, 6 wydechu · trzy minuty")
+                if hasFinished {
+                    ConfirmationNote(text: "pięknie – to były trzy minuty tylko dla Ciebie")
+                }
+                StarActionButton(hasFinished ? "jeszcze raz" : "zacznij", size: .regular) {
+                    isBreathing = true
+                }
+                .accessibilityLabel(Text(hasFinished ? "oddychaj jeszcze raz" : "zacznij oddech"))
+            }
+        }
+        .fullScreenCover(isPresented: $isBreathing) {
+            BreathingSession {
+                withAnimation(.smooth) {
+                    hasFinished = true
+                }
+            }
+        }
+    }
+}
+
+/// The exercise itself: the star grows with each breath in and shrinks with each breath out, with
+/// a soft tap at every change, and the time left under it. "zakończ" stops it at any moment;
+/// leaving the app stops it too. The screen stays on meanwhile. With Reduce Motion the star keeps
+/// its size and only brightens and fades.
+private struct BreathingSession: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Called when she has breathed all three minutes.
+    let onComplete: () -> Void
 
     private static let inhaleSeconds = 4
     private static let exhaleSeconds = 6
     /// 18 breaths of 10 seconds: three minutes.
     private static let breaths = 18
 
-    @State private var isRunning = false
     @State private var step = BreathingStep.rest
-    /// Which breath it is: 1 … `breaths`.
+    /// Which breath it is: 1 … `breaths`; 0 before the first.
     @State private var breath = 0
     /// Counts every change of step, for the haptics.
     @State private var changes = 0
-    @State private var hasFinished = false
+    @State private var isFinished = false
 
     var body: some View {
-        Card {
-            VStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("oddech").sectionTitle()
-                    Text(polish: "wdech przez 4 sekundy, wydech przez 6, przez trzy minuty. Dotknij gwiazdki, żeby zacząć, i jeszcze raz, kiedy zechcesz skończyć")
-                        .bodyText()
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Button(action: toggle) {
-                    star
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isRunning ? "zatrzymaj oddech" : "zacznij oddech")
-                VStack(spacing: 4) {
-                    Text(stepText)
-                        .displayFont(20, italic: true, relativeTo: .title3)
-                        .foregroundStyle(Palette.accent)
-                        .contentTransition(.opacity)
-                        // A quick fade of its own: the star's steps last four and six seconds.
-                        .animation(.easeInOut(duration: 0.4), value: step)
-                    if isRunning {
-                        Text(remainingText)
-                            .font(.caption)
-                            .foregroundStyle(Palette.muted)
-                    }
-                }
-                .multilineTextAlignment(.center)
-                Text(polish: "jeśli zakręci Ci się w głowie, po prostu przerwij i wróć do zwykłego oddechu")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.muted)
+        VStack(spacing: Spacing.group) {
+            Spacer(minLength: Spacing.section)
+            star
+            VStack(spacing: Spacing.tight) {
+                Text(polish: stepText)
+                    .displayFont(26, italic: true, relativeTo: .title2)
+                    .foregroundStyle(Palette.accent)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .contentTransition(.opacity)
+                    // A quick fade of its own: the star's steps last four and six seconds.
+                    .animation(.easeInOut(duration: 0.4), value: stepText)
+                // Always one line tall, so nothing moves when it appears.
+                Text(verbatim: remainingText ?? " ")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(Palette.muted)
+                    .accessibilityHidden(remainingText == nil)
+            }
+            Spacer(minLength: Spacing.section)
+            VStack(spacing: Spacing.item) {
+                if !isFinished {
+                    Text(polish: "zakręci Ci się w głowie? Przerwij i oddychaj jak zwykle")
+                        .hintText()
+                        .multilineTextAlignment(.center)
+                }
+                StarActionButton(isFinished ? "gotowe" : "zakończ", size: .regular) {
+                    dismiss()
+                }
             }
         }
+        .padding(.horizontal, Spacing.card)
+        .padding(.bottom, Spacing.group)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ambientBackground()
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: changes)
-        .task(id: isRunning) {
+        .task {
             await breathe()
         }
-        .onChange(of: isRunning) { _, running in
+        .onAppear {
             // The screen doesn't dim and lock in the middle of a breath.
-            UIApplication.shared.isIdleTimerDisabled = running
-        }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .background {
-                stop()
-            }
+            UIApplication.shared.isIdleTimerDisabled = true
         }
         .onDisappear {
-            stop()
             UIApplication.shared.isIdleTimerDisabled = false
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Leaving the app ends the exercise.
+            if phase == .background {
+                dismiss()
+            }
         }
     }
 
-    /// Small at rest and after a breath out, full after a breath in. With Reduce Motion it keeps its
-    /// size and only brightens and fades.
+    /// Small at rest and after a breath out, full after a breath in.
     private var star: some View {
         let isFull = step == .inhale
         return OrganicStar()
             .fill(Palette.accent)
-            .frame(width: 150, height: 150)
+            .frame(width: 170, height: 170)
             .scaleEffect(reduceMotion ? 0.8 : (isFull ? 1 : 0.5))
             .opacity(isFull ? 1 : 0.65)
-            .shadow(color: Palette.accent.opacity(isFull ? 0.45 : 0.15), radius: isFull ? 28 : 10)
-            .frame(width: 190, height: 190)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
+            .shadow(color: Palette.accent.opacity(isFull ? 0.45 : 0.15), radius: isFull ? 30 : 10)
+            .frame(width: 220, height: 220)
+            .accessibilityHidden(true)
     }
 
     private var stepText: String {
-        guard isRunning else {
-            return hasFinished ? "pięknie – to były trzy minuty tylko dla Ciebie" : "kiedy będziesz gotowa"
+        if isFinished {
+            return "pięknie – to były trzy minuty tylko dla Ciebie"
         }
         switch step {
         case .inhale: return "wdech"
@@ -101,34 +132,19 @@ struct BreathingCard: View {
         }
     }
 
-    private var remainingText: String {
-        let current = Swift.max(breath, 1)
-        guard current < Self.breaths else { return "ostatni oddech" }
-        let seconds = (Self.breaths - current + 1) * (Self.inhaleSeconds + Self.exhaleSeconds)
+    /// "jeszcze ok. 3 min", "ostatni oddech"; nil before the first breath and at the end.
+    private var remainingText: String? {
+        guard !isFinished, breath > 0 else { return nil }
+        guard breath < Self.breaths else { return "ostatni oddech" }
+        let seconds = (Self.breaths - breath + 1) * (Self.inhaleSeconds + Self.exhaleSeconds)
         return "jeszcze ok. \((seconds + 59) / 60) min"
     }
 
-    private func toggle() {
-        if isRunning {
-            stop()
-        } else {
-            hasFinished = false
-            breath = 0
-            isRunning = true
-        }
-    }
-
-    /// Ending `isRunning` cancels the task that leads the breaths.
-    private func stop() {
-        guard isRunning else { return }
-        isRunning = false
-        go(to: .rest, over: 1)
-    }
-
-    /// Leads the breaths to the end, unless she stops first (the task is then cancelled). Runs as
-    /// the view's task each time `isRunning` changes; when it has just turned off, nothing to do.
+    /// Leads the breaths to the end, after a moment to settle. Runs as the screen's task, so it is
+    /// cancelled when the screen goes (she stopped, or left the app).
     private func breathe() async {
-        guard isRunning else { return }
+        try? await Task.sleep(for: .seconds(1.5))
+        if Task.isCancelled { return }
         for number in 1...Self.breaths {
             breath = number
             go(to: .inhale, over: Self.inhaleSeconds)
@@ -138,9 +154,9 @@ struct BreathingCard: View {
             try? await Task.sleep(for: .seconds(Self.exhaleSeconds))
             if Task.isCancelled { return }
         }
-        hasFinished = true
-        isRunning = false
+        isFinished = true
         go(to: .rest, over: 2)
+        onComplete()
     }
 
     /// The star moves for the whole length of the step; VoiceOver says the step aloud.

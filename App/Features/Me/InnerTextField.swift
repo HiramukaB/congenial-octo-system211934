@@ -1,10 +1,20 @@
 import SwiftUI
 import AboutHerCore
 
+/// How an `InnerTextField` looks while it holds no text yet.
+nonisolated enum InnerEmptyStyle: Sendable {
+    /// A soft dashed box with a star and the invitation, right where her text will be (an
+    /// intention, the manifest, an answer). A tap opens the field in the same place.
+    case invitation
+    /// A labelled star button, for adding one more (a small win).
+    case action
+}
+
 /// A text she writes in place – an intention, a small win, the manifest, an answer. A tap opens the
 /// field and it saves itself: on the return key, when the keyboard goes, when the day or week it
 /// belongs to changes, when she leaves the screen and when the app goes to the background. A swipe
-/// to the left removes the text, when `delete` is given.
+/// to the left removes the text, when `delete` is given. After a save a soft "zapisałam" shows for
+/// a moment.
 ///
 /// `key` is what the text belongs to (a day, a week, a win). The open field always saves to the key
 /// it was opened for, so nothing lands on a day she didn't mean.
@@ -16,7 +26,7 @@ struct InnerTextField<Key: Hashable>: View {
     /// The saved text; empty when there is none.
     let text: String
     let placeholder: String
-    /// Shown with a star while there is no text; a tap opens the field.
+    /// Shown while there is no text; a tap opens the field.
     var emptyLine = ""
     /// Serif italic, for her own sentences (the intention, the manifest).
     var serif = false
@@ -26,6 +36,10 @@ struct InnerTextField<Key: Hashable>: View {
     var deleteLabel = "usuń"
     /// Shown under the field while it is empty, when emptying it doesn't remove the text.
     var emptiedHint: String? = nil
+    /// How the field looks while there is no text.
+    var emptyStyle: InnerEmptyStyle = .invitation
+    /// Said softly for a moment after a save; nil for nothing.
+    var confirmation: String? = "zapisałam"
     /// Saves the trimmed text for a key. Returns `false` when the store refused it: the field then
     /// stays open with her words.
     let save: (String, Key) -> Bool
@@ -37,20 +51,27 @@ struct InnerTextField<Key: Hashable>: View {
     /// The text when the field opened: an unchanged one isn't saved again.
     @State private var originalText = ""
     @State private var draft = ""
+    /// Counts her saves here; the "zapisałam" of each one fades a moment later.
+    @State private var saves = 0
+    @State private var showsConfirmation = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
         // A real container, not a Group: a Group would hand onDisappear to the row it replaces
         // when the field opens.
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Spacing.tight) {
             if editingKey != nil {
                 field
             } else if text.isEmpty {
-                emptyRow
+                emptyState
             } else {
                 savedText
             }
+            if showsConfirmation, editingKey == nil, let confirmation {
+                ConfirmationNote(text: confirmation)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .onChange(of: isFocused) { _, focused in
             // The keyboard went away (dragged down, another field, another tab): she is done.
             if !focused {
@@ -72,14 +93,25 @@ struct InnerTextField<Key: Hashable>: View {
             // Another tab or screen took over before the field lost the keyboard.
             finish(force: true)
         }
+        .task(id: saves) {
+            guard saves > 0 else { return }
+            try? await Task.sleep(for: .seconds(2.5))
+            // A newer save started its own wait.
+            guard !Task.isCancelled else { return }
+            withAnimation(.smooth) {
+                showsConfirmation = false
+            }
+        }
     }
 
     // MARK: - Parts
 
     private var field: some View {
         let isEmpty = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return VStack(alignment: .leading, spacing: 6) {
-            styled(TextField(placeholder, text: $draft, axis: .vertical))
+        return VStack(alignment: .leading, spacing: Spacing.tight) {
+            styled(TextField(placeholder, text: $draft,
+                             prompt: Text(placeholder).foregroundStyle(Palette.muted),
+                             axis: .vertical))
                 .foregroundStyle(Palette.text)
                 .focused($isFocused)
                 .submitLabel(.done)
@@ -89,21 +121,12 @@ struct InnerTextField<Key: Hashable>: View {
                     // request came too early.
                     isFocused = true
                 }
-            Text(polish: (isEmpty ? emptiedHint : nil) ?? "zapiszę to, gdy schowasz klawiaturę")
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
-                .fixedSize(horizontal: false, vertical: true)
+            if isEmpty, let emptiedHint {
+                Text(polish: emptiedHint)
+                    .hintText()
+            }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Palette.accentBackground.opacity(0.6))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
-        }
+        .fieldBox()
         .onChange(of: draft) { oldValue, newValue in
             if let finished = Self.textOnReturnKey(old: oldValue, new: newValue) {
                 draft = finished
@@ -112,54 +135,97 @@ struct InnerTextField<Key: Hashable>: View {
         }
     }
 
-    private var emptyRow: some View {
-        Button(action: open) {
-            HStack(spacing: 10) {
+    @ViewBuilder
+    private var emptyState: some View {
+        switch emptyStyle {
+        case .action:
+            StarActionButton(emptyLine, size: .regular) {
+                open()
+            }
+        case .invitation:
+            invitation
+        }
+    }
+
+    /// Where her text will be: the size of the open field, with a dashed edge.
+    private var invitation: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
+        return Button {
+            open()
+        } label: {
+            HStack(spacing: Spacing.item) {
                 OrganicStar()
                     .fill(Palette.accentDim)
-                    .frame(width: 11, height: 11)
+                    .frame(width: 12, height: 12)
                     .accessibilityHidden(true)
                 Text(polish: emptyLine)
-                    .bodyText()
+                    .font(.body)
+                    .foregroundStyle(Palette.text2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
+            .padding(Spacing.item + 2)
+            .frame(maxWidth: .infinity, minHeight: TapSize.large, alignment: .leading)
+            .background {
+                shape.fill(Color.white.opacity(0.03))
+            }
+            .overlay {
+                shape.strokeBorder(Palette.accent.opacity(0.28), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+            }
+            .contentShape(shape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TilePressStyle())
     }
 
     @ViewBuilder
     private var savedText: some View {
-        let shown = VStack(alignment: .leading, spacing: 3) {
-            styled(Text(text))
+        if serif {
+            tappable(serifText)
+        } else {
+            tappable(ListRow(text, detail: detail))
+        }
+    }
+
+    /// Her own sentence, large and in italics.
+    private var serifText: some View {
+        VStack(alignment: .leading, spacing: Spacing.hairline) {
+            Text(polish: text)
+                .displayFont(20, italic: true, relativeTo: .body)
                 .foregroundStyle(Palette.text)
                 .fixedSize(horizontal: false, vertical: true)
             if let detail {
                 Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(Palette.muted)
+                    .rowDetail()
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, Spacing.hairline)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Tap to correct it, swipe left to remove it.
+    }
+
+    /// Tap to correct it; with `delete`, swipe left to remove it.
+    @ViewBuilder
+    private func tappable(_ content: some View) -> some View {
         if let delete {
-            shown.swipeToDelete(label: deleteLabel, onTap: open) {
+            content.swipeToDelete(label: deleteLabel, onTap: { open() }) {
                 delete(key)
             }
         } else {
-            shown
+            content
                 .contentShape(Rectangle())
-                .onTapGesture(perform: open)
+                .onTapGesture {
+                    open()
+                }
+                .accessibilityAddTraits(.isButton)
         }
     }
 
     @ViewBuilder
     private func styled(_ content: some View) -> some View {
         if serif {
-            content.displayFont(18, italic: true, relativeTo: .body)
+            content.displayFont(20, italic: true, relativeTo: .body)
         } else {
-            content.font(.subheadline)
+            content.font(.body)
         }
     }
 
@@ -168,6 +234,7 @@ struct InnerTextField<Key: Hashable>: View {
     private func open() {
         originalText = text
         draft = text
+        showsConfirmation = false
         editingKey = key
         isFocused = true
     }
@@ -178,11 +245,19 @@ struct InnerTextField<Key: Hashable>: View {
     private func finish(typed: String? = nil, force: Bool = false) {
         guard let target = editingKey else { return }
         let trimmed = (typed ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed == originalText || save(trimmed, target) || force {
+        let isUnchanged = trimmed == originalText
+        let isSaved = !isUnchanged && save(trimmed, target)
+        if isUnchanged || isSaved || force {
             editingKey = nil
             draft = ""
         }
         isFocused = false
+        if isSaved && !trimmed.isEmpty && confirmation != nil {
+            withAnimation(.smooth) {
+                showsConfirmation = true
+            }
+            saves += 1
+        }
     }
 
     /// The return key of a multi-line field inserts a line break; here it means "gotowe". It is the

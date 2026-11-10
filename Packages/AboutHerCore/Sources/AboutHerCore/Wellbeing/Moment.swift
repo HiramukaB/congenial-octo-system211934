@@ -71,10 +71,10 @@ public struct Meditation: Sendable, Hashable {
 /// What "chwila dla siebie" offers: a meditation for the part of the day and her mood, and a short
 /// intention to take into it. Suggestions only – she can always pick another.
 public enum MeditationGuide {
-    /// The meditation for this part of the day and mood; without a mood, the one for a "średni" day.
-    /// The same meditations as in the web version.
-    public static func meditation(for time: MeditationTime, mood: MoodLevel?) -> Meditation {
-        let level: MoodLevel = mood ?? .neutral
+    /// The meditation for this part of the day and her mood of 1–10, picked per band (`MoodLevel`);
+    /// without a mood, the one for a "średni" day. The same meditations as in the web version.
+    public static func meditation(for time: MeditationTime, mood: Int?) -> Meditation {
+        let level = mood.map(MoodLevel.init(score:)) ?? .neutral
         switch (time, level) {
         case (.morning, .veryGood):
             return Meditation(title: "poranna medytacja na dobry dzień",
@@ -115,10 +115,10 @@ public enum MeditationGuide {
         }
     }
 
-    /// The intentions that suit her mood: brighter ones on good days, the gentlest on hard days.
-    /// Without a mood, all of them.
-    public static func intentions(for mood: MoodLevel?) -> [String] {
-        switch mood {
+    /// The intentions that suit her mood of 1–10: brighter ones on good days, the gentlest on hard
+    /// days. Without a mood, all of them.
+    public static func intentions(for mood: Int?) -> [String] {
+        switch mood.map(MoodLevel.init(score:)) {
         case .veryGood?, .good?:
             return brightIntentions + steadyIntentions
         case .neutral?:
@@ -134,7 +134,7 @@ public enum MeditationGuide {
 
     /// The intention to offer on `day`: another one each day, and the next one each time she asks
     /// for another (`offset`), so every one that suits her mood comes once before any comes back.
-    public static func intention(for mood: MoodLevel?, on day: LocalDate, offset: Int = 0) -> String {
+    public static func intention(for mood: Int?, on day: LocalDate, offset: Int = 0) -> String {
         let choices = intentions(for: mood)
         guard !choices.isEmpty else { return "" }
         let index = (day.julianDay &+ offset) % choices.count

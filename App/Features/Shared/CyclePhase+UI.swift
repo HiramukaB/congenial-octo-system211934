@@ -116,17 +116,21 @@ struct PhasePill: View {
     var isEstimate = false
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.tight) {
             Circle()
                 .fill(phase.tint)
-                .frame(width: 7, height: 7)
+                .frame(width: 8, height: 8)
             Text(title)
-                .font(.footnote.weight(.medium))
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(Palette.accent)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Capsule().fill(phase.tint.opacity(0.16)))
+        .padding(.horizontal, Spacing.item)
+        .padding(.vertical, Spacing.tight)
+        .background {
+            Capsule()
+                .fill(phase.tint.opacity(0.16))
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(spokenTitle))
     }

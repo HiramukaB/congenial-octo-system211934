@@ -5,10 +5,10 @@ import ImageIO
 import UniformTypeIdentifiers
 import AboutHerCore
 
-/// "zdjęcia", opened from "ja": her progress photos by month, the newest first. They come from her
-/// gallery through the system picker, which needs no access to the gallery, and a smaller copy is
-/// kept only inside the app – never in her gallery, never sent anywhere. A tap shows a photo large,
-/// where it can be removed.
+/// "zdjęcia", opened from "ja": her progress photos in a clean grid by month, the newest first.
+/// They come from her gallery through the system picker, which needs no access to the gallery,
+/// and a smaller copy is kept only inside the app – never in her gallery, never sent anywhere.
+/// A tap shows a photo large; she swipes to the ones before and after it, and can remove it there.
 struct PhotosView: View {
     @Environment(AppStore.self) private var store
     @State private var pickedItems: [PhotosPickerItem] = []
@@ -16,31 +16,49 @@ struct PhotosView: View {
     @State private var isPicking = false
     /// How many of the photos she picked last couldn't be opened.
     @State private var failedCount = 0
+    /// "dodałam …" for a moment after photos were added.
+    @State private var addedNote: String? = nil
+    @State private var additions = 0
     @State private var shownPhoto: ProgressPhoto? = nil
 
     var body: some View {
-        let months = PhotoMonth.group(store.data.photosNewestFirst)
+        let photos = store.data.photosNewestFirst
         Screen {
-            Text("zdjęcia").screenTitle()
-            Text(polish: "lekki dziennik Twojej drogi, w Twoim tempie. Zdjęcia zostają tylko w tym telefonie, w aplikacji – nie trafiają do Twojej galerii i nigdzie ich nie wysyłam")
-                .bodyText()
-            addCard
-            ForEach(months) { month in
+            ScreenHeader(title: "zdjęcia", subtitle: "tylko w tym telefonie – nie w Twojej galerii")
+            if photos.isEmpty && !isAdding {
                 Card {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(PolishDate.monthYear(month.id)).sectionTitle()
-                        LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 12) {
-                            ForEach(month.photos) { photo in
-                                tile(photo)
-                            }
-                        }
-                    }
+                    EmptyState(title: "tu zbierzesz zdjęcia swojej drogi",
+                               message: "jedno co jakiś czas wystarczy",
+                               actionTitle: "dodaj pierwsze zdjęcie",
+                               action: { isPicking = true })
+                }
+            } else {
+                StarActionButton(isAdding ? "dodaję zdjęcia…" : "dodaj zdjęcia", isEnabled: !isAdding) {
+                    isPicking = true
                 }
             }
-            Text(polish: "zdjęć nie ma w dziennych kopiach Twoich danych, więc gdy usuniesz aplikację, znikną razem z nią")
-                .font(.footnote)
-                .foregroundStyle(Palette.muted)
-                .fixedSize(horizontal: false, vertical: true)
+            if let addedNote {
+                ConfirmationNote(text: addedNote)
+            }
+            if failedCount > 0 {
+                Text(polish: failedCount == 1
+                     ? "jednego zdjęcia nie udało mi się otworzyć – spróbuj jeszcze raz"
+                     : "kilku zdjęć nie udało mi się otworzyć – spróbuj jeszcze raz")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.accent)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !photos.isEmpty {
+                VStack(alignment: .leading, spacing: Spacing.group) {
+                    ForEach(PhotoMonth.group(photos)) { month in
+                        monthSection(month)
+                    }
+                }
+                .padding(.top, Spacing.tight)
+                MoreInfo("gdzie są zdjęcia?",
+                         text: "tylko w tej aplikacji – nie w Twojej galerii i nigdzie ich nie wysyłam. Nie ma ich w dziennych kopiach Twoich danych, więc gdy usuniesz aplikację, znikną razem z nią")
+                    .padding(.top, Spacing.tight)
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         // The picker as a modifier: its label closure is nonisolated in the iOS 26 SDK.
@@ -55,70 +73,49 @@ struct PhotosView: View {
             }
         }
         .sheet(item: $shownPhoto) { photo in
-            PhotoDetailSheet(photo: photo)
+            PhotoViewer(photo: photo)
+        }
+        .task(id: additions) {
+            guard additions > 0 else { return }
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            withAnimation(.smooth) {
+                addedNote = nil
+            }
         }
     }
 
-    private static let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
+    private static let columns = Array(repeating: GridItem(.flexible(), spacing: Spacing.tight), count: 3)
 
-    private var addCard: some View {
-        Button {
-            isPicking = true
-        } label: {
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) {
-                        OrganicStar()
-                            .fill(Palette.accent)
-                            .frame(width: 14, height: 14)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("dodaj zdjęcie").sectionTitle()
-                            Text(polish: "wybierz je z galerii – zapiszę tu jego kopię z dzisiejszą datą")
-                                .font(.footnote)
-                                .foregroundStyle(Palette.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 0)
-                        if isAdding {
-                            ProgressView()
-                                .tint(Palette.accentDim)
-                        }
-                    }
-                    if failedCount > 0 {
-                        Text(polish: failedCount == 1
-                             ? "jednego zdjęcia nie udało mi się otworzyć – spróbuj wybrać je jeszcze raz"
-                             : "kilku zdjęć nie udało mi się otworzyć – spróbuj wybrać je jeszcze raz")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.accent)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+    /// One month: its name, then its photos three to a row.
+    private func monthSection(_ month: PhotoMonth) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.item) {
+            Text(PolishDate.monthYear(month.id))
+                .sectionTitle()
+                .accessibilityAddTraits(.isHeader)
+            LazyVGrid(columns: Self.columns, alignment: .leading, spacing: Spacing.tight) {
+                ForEach(month.photos) { photo in
+                    tile(photo)
                 }
             }
         }
-        .buttonStyle(.plain)
-        .disabled(isAdding)
-        .accessibilityLabel("dodaj zdjęcia z galerii")
     }
 
     private func tile(_ photo: ProgressPhoto) -> some View {
-        Button {
+        let shape = RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
+        return Button {
             shownPhoto = photo
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                Color.clear
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay {
-                        PhotoFileImage(url: store.photoURL(photo), maxPixelSize: 480, fills: true)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                Text(PolishDate.short(photo.day))
-                    .font(.caption)
-                    .foregroundStyle(Palette.muted)
-            }
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    PhotoFileImage(url: store.photoURL(photo), maxPixelSize: 480, fills: true)
+                }
+                .clipShape(shape)
+                .contentShape(shape)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("zdjęcie z \(PolishDate.dayMonth(photo.day))")
+        .buttonStyle(TilePressStyle())
+        .accessibilityLabel(Text("zdjęcie z \(PolishDate.dayMonth(photo.day))"))
     }
 
     /// Keeps a smaller JPEG copy of each picked photo for today. Each is converted away from the
@@ -127,6 +124,7 @@ struct PhotosView: View {
         isAdding = true
         failedCount = 0
         var failed = 0
+        var added = 0
         for item in items {
             guard let original = try? await item.loadTransferable(type: Data.self),
                   let jpeg = await Task.detached(priority: .userInitiated, operation: {
@@ -138,65 +136,126 @@ struct PhotosView: View {
             }
             // Refused or not written: the store tells her why, and the rest would go the same way.
             guard store.addPhoto(jpeg: jpeg, on: store.today) else { break }
+            added += 1
         }
         failedCount = failed
         isAdding = false
+        if added > 0 {
+            withAnimation(.smooth) {
+                addedNote = added == 1
+                    ? "dodałam zdjęcie"
+                    : "dodałam \(added) \(PolishPlural.form(added, one: "zdjęcie", few: "zdjęcia", many: "zdjęć"))"
+            }
+            additions += 1
+        }
     }
 }
 
-/// One photo, large, with its day. Removing it asks once more.
-private struct PhotoDetailSheet: View {
+/// Her photos large, one at a time, with the day as the title. A swipe sideways goes to the
+/// photo before or after; removing one asks once more. Swiped down or closed, it goes away.
+private struct PhotoViewer: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    let photo: ProgressPhoto
+    /// The photo on screen.
+    @State private var currentID: UUID
     @State private var isAskingToRemove = false
 
+    init(photo: ProgressPhoto) {
+        _currentID = State(initialValue: photo.id)
+    }
+
     var body: some View {
-        let url = store.photoURL(photo)
-        let isThere = FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
+        let photos = store.data.photosNewestFirst
+        let current = photos.first { $0.id == currentID }
         NavigationStack {
-            VStack(spacing: 16) {
-                if isThere {
-                    PhotoFileImage(url: url, maxPixelSize: 2048)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    Spacer()
-                    Text(polish: "nie mogę znaleźć tego zdjęcia w telefonie. Mogło zniknąć, gdy wczytywałam kopię Twoich danych – możesz usunąć ten wpis")
-                        .bodyText()
-                        .multilineTextAlignment(.center)
-                    Spacer()
+            TabView(selection: $currentID) {
+                ForEach(photos) { photo in
+                    PhotoPage(url: store.photoURL(photo), label: "zdjęcie z \(PolishDate.dayMonth(photo.day))")
+                        .tag(photo.id)
                 }
-                Button("usuń to zdjęcie") {
-                    isAskingToRemove = true
-                }
-                .buttonStyle(LinkButtonStyle())
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .tabViewStyle(.page(indexDisplayMode: .never))
             .background(Palette.background)
-            .navigationTitle(InnerFormat.date(photo.day, today: store.today))
+            .navigationTitle(current.map { InnerFormat.date($0.day, today: store.today) } ?? "")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        isAskingToRemove = true
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .accessibilityLabel(Text("usuń to zdjęcie"))
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "checkmark")
+                        Image(systemName: "xmark")
                     }
-                    .accessibilityLabel("gotowe")
+                    .accessibilityLabel(Text("zamknij"))
                 }
             }
             .confirmationDialog("usunąć to zdjęcie?", isPresented: $isAskingToRemove, titleVisibility: .visible) {
                 Button("usuń zdjęcie") {
-                    store.removePhoto(photo.id)
-                    dismiss()
+                    removeCurrent()
                 }
                 Button("zostaw", role: .cancel) {}
             } message: {
                 Text(polish: "usunę je z aplikacji i nie da się go już przywrócić")
             }
         }
+        .tint(Palette.accent)
         .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// Removes the photo on screen and shows the next one. Closes when none is left – and when it
+    /// couldn't be removed, so the store's note about it can show.
+    private func removeCurrent() {
+        let photos = store.data.photosNewestFirst
+        guard let index = photos.firstIndex(where: { $0.id == currentID }) else {
+            dismiss()
+            return
+        }
+        let removedID = currentID
+        var next: ProgressPhoto? = nil
+        if photos.indices.contains(index + 1) {
+            next = photos[index + 1]
+        } else if index > 0 {
+            next = photos[index - 1]
+        }
+        store.removePhoto(removedID)
+        let isRemoved = !store.data.photos.contains { $0.id == removedID }
+        if isRemoved, let next {
+            currentID = next.id
+        } else {
+            dismiss()
+        }
+    }
+}
+
+/// One photo as large as it fits, or a gentle note when its file is gone.
+private struct PhotoPage: View {
+    let url: URL
+    /// What VoiceOver says for the photo: "zdjęcie z 7 listopada".
+    let label: String
+
+    var body: some View {
+        Group {
+            if FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
+                PhotoFileImage(url: url, maxPixelSize: 2048)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(label))
+                    .accessibilityAddTraits(.isImage)
+            } else {
+                Text(polish: "nie mogę znaleźć tego zdjęcia w telefonie – mogło zniknąć, gdy wczytywałam kopię Twoich danych. Możesz usunąć ten wpis")
+                    .bodyText()
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(Spacing.card)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -221,10 +280,10 @@ private struct PhotoFileImage: View {
                     Image(uiImage: loaded.image)
                         .resizable()
                         .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                 }
             } else {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
                     .fill(Palette.accentBackground.opacity(0.6))
                 if isMissing {
                     OrganicStar()

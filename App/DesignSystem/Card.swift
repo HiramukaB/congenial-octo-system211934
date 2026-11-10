@@ -1,40 +1,78 @@
 import SwiftUI
 
-/// Frosted dark card on top of the moving background.
+/// How a card stands out from the background (DESIGN.md, "Cards").
+enum CardStyle {
+    /// Frosted dark card – almost everything.
+    case standard
+    /// A touch of the accent: the one card a screen is about (today's cycle day, a welcome step).
+    case highlight
+    /// No fill, only a hairline: secondary content that shouldn't compete with the cards around it.
+    case quiet
+}
+
+/// A card on top of the moving background: 20 pt inside, 24 pt corners.
 struct Card<Content: View>: View {
-    var padding: CGFloat = 16
+    var padding: CGFloat = Spacing.card
+    var style: CardStyle = .standard
     @ViewBuilder var content: Content
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                ZStack {
-                    shape.fill(.ultraThinMaterial)
-                    shape.fill(Palette.card.opacity(0.55))
-                }
+                surface(shape)
             }
             .overlay {
-                shape.strokeBorder(.white.opacity(0.07), lineWidth: 1)
+                shape.strokeBorder(borderColor, lineWidth: 1)
             }
+    }
+
+    @ViewBuilder
+    private func surface(_ shape: RoundedRectangle) -> some View {
+        switch style {
+        case .standard:
+            ZStack {
+                shape.fill(.ultraThinMaterial)
+                shape.fill(Palette.card.opacity(0.55))
+            }
+        case .highlight:
+            ZStack {
+                shape.fill(.ultraThinMaterial)
+                shape.fill(Palette.card.opacity(0.5))
+                shape.fill(LinearGradient(colors: [Palette.accent.opacity(0.12), Palette.accent.opacity(0.03)],
+                                          startPoint: .topLeading, endPoint: .bottomTrailing))
+            }
+        case .quiet:
+            shape.fill(Color.white.opacity(0.025))
+        }
+    }
+
+    private var borderColor: Color {
+        switch style {
+        case .standard: Color.white.opacity(0.07)
+        case .highlight: Palette.accent.opacity(0.22)
+        case .quiet: Color.white.opacity(0.08)
+        }
     }
 }
 
-/// A scrolling tab with the usual margins and the ambient background.
+/// A scrolling screen with the usual margins and the ambient background: 20 pt at the sides,
+/// 16 pt between cards. The tab bar always stays visible; the scroll view's safe area ends above
+/// it, so the last card scrolls clear of it, with 32 pt to spare.
 struct Screen<Content: View>: View {
     var tint: Color?
     @ViewBuilder var content: Content
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 content
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 40)
+            .padding(.horizontal, Spacing.card)
+            .padding(.top, Spacing.tight)
+            .padding(.bottom, Spacing.section)
         }
         .scrollIndicators(.hidden)
         // Dragging down into the keyboard closes it, which also saves what she typed.
@@ -89,5 +127,22 @@ struct LinkButtonStyle: ButtonStyle {
             .padding(.vertical, 10)
             .contentShape(Rectangle())
             .padding(.vertical, -10)
+    }
+}
+
+extension View {
+    /// The look of a field while she types in it: a soft warm box with a hairline of the accent.
+    /// Every open text field in the app wears it, so writing looks the same everywhere.
+    func fieldBox() -> some View {
+        padding(Spacing.item + 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
+                    .fill(Palette.accentBackground.opacity(0.6))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
+                    .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
+            }
     }
 }

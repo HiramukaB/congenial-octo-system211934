@@ -9,7 +9,7 @@ struct InnerView: View {
 
     var body: some View {
         Screen {
-            Text("wnętrze").screenTitle()
+            ScreenHeader(title: "wnętrze")
             TodayIntentionCard(day: store.today)
             InnerWinsCard()
             InnerManifestCard()
@@ -19,50 +19,57 @@ struct InnerView: View {
     }
 }
 
-/// "małe zwycięstwa": a short line at a time, the latest first.
+/// "małe zwycięstwa": a clear "dopisz zwycięstwo", then her wins, the latest first.
 private struct InnerWinsCard: View {
     @Environment(AppStore.self) private var store
     @State private var showsAll = false
 
     /// How many wins show before "pokaż wszystkie".
-    private static let recentCount = 7
+    private static let recentCount = 5
     private static let placeholder = "np. poszłam na spacer, choć byłam zmęczona"
 
     var body: some View {
         let wins = store.data.winsNewestFirst
         let shown = showsAll ? wins : Array(wins.prefix(Self.recentCount))
         Card {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("małe zwycięstwa").sectionTitle()
-                Text(polish: "drobne rzeczy, z których jesteś dumna – każda się liczy")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                // A new win: the field opens empty and closes again once the win is saved.
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("małe zwycięstwa",
+                              subtitle: wins.isEmpty ? "drobne rzeczy, z których jesteś dumna" : nil)
+                // A new win: the button opens an empty field, which closes again once the win is saved.
                 InnerTextField(key: store.today,
                                text: "",
                                placeholder: Self.placeholder,
-                               emptyLine: "dopisz małe zwycięstwo",
+                               emptyLine: "dopisz zwycięstwo",
+                               emptyStyle: .action,
                                save: { text, day in
                                    // The date can move back (a time zone to the west): then it goes to today.
                                    text.isEmpty || store.addWin(text, on: Swift.min(day, store.today))
                                })
-                ForEach(shown) { win in
-                    InnerTextField(key: win.id,
-                                   text: win.text,
-                                   placeholder: Self.placeholder,
-                                   detail: InnerFormat.day(win.day, today: store.today),
-                                   deleteLabel: "usuń zwycięstwo",
-                                   emptiedHint: "pusty tekst niczego nie zmieni – zwycięstwo usuniesz, przesuwając je w lewo",
-                                   save: { text, id in
-                                       // An emptied line changes nothing; a win is removed with a swipe.
-                                       text.isEmpty || store.updateWin(id, text: text)
-                                   },
-                                   delete: { id in store.removeWin(id) })
+                if !shown.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(shown) { win in
+                            if win.id != shown.first?.id {
+                                RowDivider()
+                            }
+                            InnerTextField(key: win.id,
+                                           text: win.text,
+                                           placeholder: Self.placeholder,
+                                           detail: InnerFormat.day(win.day, today: store.today),
+                                           deleteLabel: "usuń zwycięstwo",
+                                           emptiedHint: "żeby usunąć zwycięstwo, przesuń je w lewo",
+                                           save: { text, id in
+                                               // An emptied line changes nothing; a win is removed with a swipe.
+                                               text.isEmpty || store.updateWin(id, text: text)
+                                           },
+                                           delete: { id in store.removeWin(id) })
+                        }
+                    }
                 }
                 if wins.count > shown.count {
                     Button("pokaż wszystkie (\(wins.count))") {
-                        showsAll = true
+                        withAnimation(.smooth) {
+                            showsAll = true
+                        }
                     }
                     .buttonStyle(LinkButtonStyle())
                 }
@@ -71,7 +78,7 @@ private struct InnerWinsCard: View {
     }
 }
 
-/// "kim się stajesz": her own words about who she is becoming.
+/// "kim się stajesz": her own words about who she is becoming – the heart of this screen.
 private struct InnerManifestCard: View {
     @Environment(AppStore.self) private var store
 
@@ -79,21 +86,17 @@ private struct InnerManifestCard: View {
     private static let example = "Jestem kimś, kto dotrzymuje sobie słowa. Buduję siłę i spokój, dzień po dniu."
 
     var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("kim się stajesz").sectionTitle()
+        Card(style: .highlight) {
+            VStack(alignment: .leading, spacing: Spacing.item) {
+                SectionHeader("kim się stajesz")
                 InnerTextField(key: "manifest",
                                text: store.data.manifest,
                                placeholder: Self.example,
-                               emptyLine: "dotknij i napisz to swoimi słowami, np. „\(Self.example)”",
+                               emptyLine: "napisz swoimi słowami, kim się stajesz",
                                serif: true,
                                lines: 2...10,
                                save: { text, _ in store.setManifest(text) },
                                delete: { _ in store.setManifest("") })
-                Text(polish: "Twoje własne słowa. Wracaj tu w dni, w które trudno w to uwierzyć")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -112,47 +115,55 @@ private struct InnerReflectionCards: View {
         let week = store.today.startOfWeek
         let past = store.data.pastReflections(before: store.today)
         let shownPast = showsAll ? past : Array(past.prefix(Self.recentCount))
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: Spacing.cardGap) {
             Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("refleksja tygodnia").sectionTitle()
+                VStack(alignment: .leading, spacing: Spacing.item) {
+                    SectionHeader("refleksja tygodnia", subtitle: "co tydzień nowe pytanie")
                     Text(polish: question(forWeekOf: week))
-                        .displayFont(17, italic: true, relativeTo: .body)
+                        .displayFont(19, italic: true, relativeTo: .body)
                         .foregroundStyle(Palette.text)
                         .fixedSize(horizontal: false, vertical: true)
                     answerField(week: week,
                                 answer: store.data.reflection(forWeekOf: week)?.answer ?? "",
-                                emptyLine: "dotknij, żeby odpowiedzieć – kilka słów wystarczy")
-                    Text(polish: "co tydzień czeka tu nowe pytanie")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.muted)
+                                emptyLine: "odpowiedz – kilka słów wystarczy")
                 }
             }
             if !past.isEmpty {
-                Card {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("poprzednie tygodnie").sectionTitle()
-                        ForEach(shownPast) { entry in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("tydzień od \(InnerFormat.date(entry.week, today: store.today))")
-                                    .font(.caption)
-                                    .foregroundStyle(Palette.muted)
-                                Text(polish: entry.reflection.question)
-                                    .font(.footnote.italic())
-                                    .foregroundStyle(Palette.text2)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                answerField(week: entry.week, answer: entry.reflection.answer, emptyLine: "")
+                Card(style: .quiet) {
+                    VStack(alignment: .leading, spacing: Spacing.item) {
+                        SectionHeader("poprzednie tygodnie")
+                        VStack(alignment: .leading, spacing: Spacing.item) {
+                            ForEach(shownPast) { entry in
+                                if entry.id != shownPast.first?.id {
+                                    RowDivider()
+                                }
+                                pastWeek(entry)
                             }
                         }
                         if past.count > shownPast.count {
                             Button("pokaż wszystkie (\(past.count))") {
-                                showsAll = true
+                                withAnimation(.smooth) {
+                                    showsAll = true
+                                }
                             }
                             .buttonStyle(LinkButtonStyle())
                         }
                     }
                 }
             }
+        }
+    }
+
+    /// An earlier week: when it was, the question then, and her answer to correct or remove.
+    private func pastWeek(_ entry: PastReflection) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.hairline) {
+            Text("tydzień od \(InnerFormat.date(entry.week, today: store.today))")
+                .rowDetail()
+            Text(polish: entry.reflection.question)
+                .font(.subheadline.italic())
+                .foregroundStyle(Palette.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            answerField(week: entry.week, answer: entry.reflection.answer, emptyLine: "")
         }
     }
 

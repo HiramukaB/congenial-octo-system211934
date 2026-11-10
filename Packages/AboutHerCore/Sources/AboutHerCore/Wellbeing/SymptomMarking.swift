@@ -1,8 +1,15 @@
-// Marking how she felt: one tap marks a value, a second tap on the same value takes it back.
+// Marking how she felt: a scale is set by dragging along it (1–10), a symptom is marked with one
+// tap and taken back with a second one.
 
 extension SymptomDay {
-    /// Marks `value` on one of the scales (energy, mood, sleep, appetite), or clears that scale
-    /// when `value` was already marked, e.g. `toggle(\.mood, .good)`.
+    /// Sets one of the scales (energy, mood, sleep, appetite) to `value`, kept within 1–10, or
+    /// clears it with nil: `set(\.energy, to: 7)`.
+    public mutating func set(_ scale: WritableKeyPath<SymptomDay, Int?>, to value: Int?) {
+        self[keyPath: scale] = value.map(SymptomScale.clamped)
+    }
+
+    /// Marks `value` on one of the scales, or clears that scale when `value` was already marked,
+    /// e.g. `toggle(\.mood, 7)`.
     public mutating func toggle<Value: Equatable>(_ scale: WritableKeyPath<SymptomDay, Value?>, _ value: Value) {
         self[keyPath: scale] = self[keyPath: scale] == value ? nil : value
     }

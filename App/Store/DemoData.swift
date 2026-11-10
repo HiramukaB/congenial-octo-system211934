@@ -36,11 +36,14 @@ enum DemoData {
         data.addWater(2, to: .midday, on: today)
 
         // One part of the app each, every one in its own file (DemoData+….swift).
+        let now = Date.now
         addSymptoms(to: &data, today: today)
         addSettings(to: &data, today: today)
+        addOnboarding(to: &data, now: now)
         addMovement(to: &data, today: today)
         addInner(to: &data, today: today)
         addMoment(to: &data, today: today)
+        addHumor(to: &data, now: now)
         return data
     }
 }

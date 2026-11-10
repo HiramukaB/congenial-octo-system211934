@@ -40,13 +40,9 @@ struct MomentNoteField: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(polish: currentHint)
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: Spacing.tight) {
             TextField(placeholder, text: $draft, axis: .vertical)
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(Palette.text)
                 .focused($isFocused)
                 .submitLabel(.done)
@@ -54,17 +50,10 @@ struct MomentNoteField: View {
                 .onAppear {
                     isFocused = true
                 }
+            Text(polish: currentHint)
+                .hintText()
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Palette.accentBackground.opacity(0.6))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
-        }
+        .fieldBox()
         .onChange(of: draft) { oldValue, newValue in
             // One line break typed is the return key: it isn't kept, and the field closes.
             if newValue.count == oldValue.count + 1,
