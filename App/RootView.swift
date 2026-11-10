@@ -21,18 +21,21 @@ struct RootView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection = AppTab.initial
+    /// The day "jedzenie" shows (0 = today, -1 = yesterday …). Kept here, so "otwórz jedzenie"
+    /// on "dziś" can open the day she is looking at there.
+    @State private var foodDayOffset = 0
     @State private var isShowingProblem = false
 
     var body: some View {
         TabView(selection: $selection) {
             Tab("dziś", systemImage: "sun.max", value: AppTab.today) {
-                TodayView(selectedTab: $selection)
+                TodayView(selectedTab: $selection, foodDayOffset: $foodDayOffset)
             }
             Tab("kalendarz", systemImage: "calendar", value: AppTab.calendar) {
                 CalendarView()
             }
             Tab("jedzenie", systemImage: "fork.knife", value: AppTab.food) {
-                FoodView()
+                FoodView(dayOffset: $foodDayOffset)
             }
             Tab("ruch", systemImage: "figure.yoga", value: AppTab.movement) {
                 MovementView()
@@ -53,6 +56,16 @@ struct RootView: View {
         // Midnight (and time zone changes) while the app stays open.
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
             store.refreshToday()
+        }
+        .onChange(of: selection) { oldTab, newTab in
+            // Leaving "jedzenie" brings it back to today, so the next meal never lands on another day.
+            if oldTab == .food && newTab != .food {
+                foodDayOffset = 0
+            }
+        }
+        .onChange(of: store.today) {
+            // A new day began: "jedzenie" starts again from today.
+            foodDayOffset = 0
         }
         .onChange(of: store.problem, initial: true) { _, problem in
             isShowingProblem = problem != nil

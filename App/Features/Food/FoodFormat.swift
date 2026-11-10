@@ -17,8 +17,29 @@ enum FoodFormat {
         return number(0, decimals: decimals)
     }
 
+    /// A whole number for display. Never traps: values far beyond any real amount (a pasted run
+    /// of digits) are capped, and NaN or infinity show as 0.
     static func whole(_ value: Double) -> Int {
-        value.isFinite ? Int(value.rounded()) : 0
+        guard value.isFinite else { return 0 }
+        let limit = 1e15
+        return Int(Swift.min(Swift.max(value, -limit), limit).rounded())
+    }
+
+    /// "3", "1,5", "0,25": at most two decimals, no trailing zeros. Also used to put a saved
+    /// value back into a text field, where `parseNumber` reads it again.
+    static func compact(_ value: Double) -> String {
+        guard value.isFinite else { return "0" }
+        var text = String(format: "%.2f", value)
+        while text.hasSuffix("0") {
+            text.removeLast()
+        }
+        if text.hasSuffix(".") {
+            text.removeLast()
+        }
+        if text == "-0" {
+            text = "0"
+        }
+        return text.replacingOccurrences(of: ".", with: ",")
     }
 
     /// "420 kcal · B 21 g · W 50 g · T 14 g"
@@ -33,18 +54,18 @@ enum FoodFormat {
         return value
     }
 
-    /// One recognised item, e.g. "jajko × 3 · 210 kcal" or "łosoś · 150 g · 300 kcal".
+    /// One recognised item, e.g. "jajko × 3 · 165 g · 236 kcal" or "łosoś · 150 g · 300 kcal".
+    /// Counted items show their grams too, so a wrong portion weight is visible at once.
+    /// "(?)" follows the name when it was matched despite a typo.
     static func itemLine(_ item: ParsedItem) -> String {
         var line = item.foodName
-        if item.unit == nil {
-            line += " · \(whole(item.grams)) g"
-        } else if abs(item.amount - 1) > 0.001 {
-            line += " × " + number(item.amount, decimals: item.amount.rounded() == item.amount ? 0 : 1)
-        }
         if item.isGuess {
             line += " (?)"
         }
-        return line + " · \(whole(item.macros.kcal)) kcal"
+        if item.unit != nil, abs(item.amount - 1) > 0.001 {
+            line += " × " + compact(item.amount)
+        }
+        return line + " · \(whole(item.grams)) g · \(whole(item.macros.kcal)) kcal"
     }
 }
 

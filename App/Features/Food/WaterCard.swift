@@ -13,11 +13,13 @@ struct WaterCard: View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("woda").sectionTitle()
+                    Text(title).sectionTitle()
                     Spacer()
                     Text("\(waterDay.total) / \(goal) szklanek")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(Palette.text2)
+                        // VoiceOver would read the slash; "3 z 8 szklanek" is how it is said.
+                        .accessibilityLabel(Text(verbatim: "\(waterDay.total) z \(goal) szklanek"))
                 }
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
@@ -41,6 +43,12 @@ struct WaterCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// Names the day whenever it isn't today, as the meal card does, so a glass never lands on
+    /// another day unnoticed.
+    private var title: String {
+        day == store.today ? "woda" : "woda · \(PolishDate.dayMonth(day))"
     }
 }
 

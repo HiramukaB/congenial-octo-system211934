@@ -26,7 +26,8 @@ App/                      aplikacja SwiftUI
   DesignSystem/           kolory, typografia, gwiazdka, animowane tło, karty
   Features/               ekrany: Today, Calendar, Me i zakładki w budowie
   Store/                  stan aplikacji i zapis do pliku
-Packages/AboutHerCore/    logika bez interfejsu (daty, silnik cyklu, dane) + testy
+Packages/AboutHerCore/    logika bez interfejsu (daty, silnik cyklu, jedzenie, dane) + testy
+Tools/food/               źródło bazy produktów i parser posiłków w Pythonie (sprawdzanie bez Swifta)
 UITests/                  zrzuty ekranu każdej zakładki i test zapisu danych
 project.yml               definicja projektu dla XcodeGen (.xcodeproj się generuje)
 .github/workflows/        budowanie w chmurze
@@ -101,6 +102,9 @@ ani danych, jeśli to ten sam Apple ID), a potem w AltStore Refresh All.
 
 - Testy logiki: `cd Packages/AboutHerCore && swift test` (Linux, macOS albo Docker z obrazem `swift`).
 - Projekt Xcode na Macu: `brew install xcodegen && xcodegen generate`.
+- Baza produktów (`FoodDB.json`) jest generowana z `Tools/food/catalog_src.py`, a zmiany parsera
+  posiłków idą krok w krok z `Tools/food/meal_port.py` – szczegóły i sprawdzenia przed commitem
+  w [Tools/food/README.md](Tools/food/README.md).
 - Argumenty uruchomienia:
   - `-demoData` – fikcyjna historia, nic nie zapisuje;
   - `-startTab calendar` – otwiera wybraną zakładkę (`today`, `calendar`, `food`, `movement`, `me`);
@@ -109,5 +113,8 @@ ani danych, jeśli to ten sam Apple ID), a potem w AltStore Refresh All.
 - Zapis danych: plik `Application Support/AboutHer/about-her.json`, kopie w `Kopie/`.
   Dopóki plik nie zostanie odczytany, aplikacja niczego nie zapisuje (np. zaraz po restarcie
   telefonu, przed pierwszym odblokowaniem). Uszkodzony plik jest odkładany na bok, a dane
-  wracają z najnowszej dobrej kopii. Pliku z nowszej wersji (wyższy `schemaVersion` albo
-  nieznane pola) starsza wersja tylko wyświetla i nigdy go nie nadpisuje.
+  wracają z najnowszej dobrej kopii. Plik z nowszej wersji (z wyższym `schemaVersion`, z nieznanym
+  polem na najwyższym poziomie albo poprawny JSON, którego nie da się odczytać, np. przez nową wartość
+  wyliczenia) starsza wersja otwiera tylko do odczytu i nigdy go nie nadpisuje. Nieznanych pól głębiej
+  w pliku nie zauważa, dlatego każde nowe pole i każda nowa wartość wyliczenia, także zagnieżdżone,
+  wymagają podniesienia `schemaVersion`.

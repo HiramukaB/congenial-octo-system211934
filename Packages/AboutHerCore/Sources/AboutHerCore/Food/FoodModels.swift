@@ -55,9 +55,15 @@ public struct FoodItem: Codable, Sendable, Hashable, Identifiable {
     /// What a bare count means: "2 jajka" = 2 × this portion.
     public var defaultPortion: Portion
     public var tags: [NutrientTag]
+    /// The name or aliases that mean one piece ("naleśnik" of naleśniki): with no amount, one of these is
+    /// the default portion, not the serving of several. Optional, so her own products and files written
+    /// before it need none. Only the catalog sets it: her own products never do, and nil isn't written,
+    /// so it never reaches her file. A version that lets her set it must raise `AppData.currentSchemaVersion`.
+    public var singular: [String]?
 
     public init(id: String, name: String, aliases: [String] = [], category: FoodCategory, per100: Macros,
-                portions: [Portion] = [], defaultPortion: Portion, tags: [NutrientTag] = []) {
+                portions: [Portion] = [], defaultPortion: Portion, tags: [NutrientTag] = [],
+                singular: [String]? = nil) {
         self.id = id
         self.name = name
         self.aliases = aliases
@@ -66,6 +72,7 @@ public struct FoodItem: Codable, Sendable, Hashable, Identifiable {
         self.portions = portions
         self.defaultPortion = defaultPortion
         self.tags = tags
+        self.singular = singular
     }
 
     /// Macros of `grams` grams of this product.
@@ -74,9 +81,13 @@ public struct FoodItem: Codable, Sendable, Hashable, Identifiable {
     }
 
     /// The weight of one `unit` of this product: its own portion if it has one, otherwise a generic weight.
+    /// A serving or a piece it doesn't list is its default portion: "porcja sernika" is the slice that
+    /// "sernik" is, "2 sztuki jogurtu" two of its cups and "2 sztuki chleba" two slices, not 250 g or 100 g.
     public func grams(per unit: PortionUnit) -> Double {
         if defaultPortion.unit == unit { return defaultPortion.grams }
-        return portions.first(where: { $0.unit == unit })?.grams ?? FoodItem.genericGrams(for: unit)
+        if let own = portions.first(where: { $0.unit == unit }) { return own.grams }
+        if unit == .serving || unit == .piece { return defaultPortion.grams }
+        return FoodItem.genericGrams(for: unit)
     }
 
     /// Fallback weights when a product doesn't list a unit.

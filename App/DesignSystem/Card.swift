@@ -37,9 +37,36 @@ struct Screen<Content: View>: View {
             .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
-        // Scrolling away from a field closes the keyboard, which also saves what she typed.
+        // Dragging down into the keyboard closes it, which also saves what she typed.
         .scrollDismissesKeyboard(.interactively)
+        .overlay(alignment: .top) {
+            StatusBarFade()
+        }
         .ambientBackground(tint: tint)
+    }
+}
+
+/// A soft fade of the night colour under the status bar, so text scrolled up doesn't run into
+/// the clock. It covers only the status bar and a few points below it, and takes no touches.
+///
+/// It sits at the top of the safe area. The colour behind its zero-height top reaches up
+/// through the status bar – a background extends into the safe area it touches – so it fits
+/// any status bar height without measuring it. (A GeometryReader that ignores the safe area
+/// reads its top inset as 0, which left only a sliver.)
+struct StatusBarFade: View {
+    private static let opacity = 0.9
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: 0)
+                .background(Palette.background.opacity(Self.opacity), ignoresSafeAreaEdges: .top)
+            LinearGradient(colors: [Palette.background.opacity(Self.opacity), Palette.background.opacity(0)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: 14)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

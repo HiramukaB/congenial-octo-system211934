@@ -22,7 +22,17 @@ public struct MealEntry: Codable, Sendable, Hashable, Identifiable {
 
     /// The same entry, parsed again (e.g. after she taught the app a product).
     public func reparsed(with parser: MealParser) -> MealEntry {
-        MealEntry(id: id, createdAt: createdAt, text: text, parsed: parser.parse(text))
+        var entry = self
+        entry.update(text: text, parsed: parser.parse(text))
+        return entry
+    }
+
+    /// Replaces what she typed and what it was parsed into; the id and the time stay.
+    public mutating func update(text: String, parsed: ParsedMeal) {
+        self.text = text
+        items = parsed.items
+        unknown = parsed.unknown
+        totals = parsed.totals
     }
 
     enum CodingKeys: String, CodingKey {

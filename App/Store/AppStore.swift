@@ -80,6 +80,19 @@ final class AppStore {
         return true
     }
 
+    /// Replaces what she wrote for a logged meal and counts it again. The meal keeps its id, its
+    /// time and its place in the day. An empty text changes nothing – a meal is deleted with a
+    /// swipe. Returns `false` when nothing was saved.
+    @discardableResult
+    func replaceMeal(_ id: UUID, text: String, on day: LocalDate) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, canEdit(), data.meals(on: day).contains(where: { $0.id == id }) else { return false }
+        let parsed = mealParser.parse(trimmed)
+        data.updateMeal(id: id, on: day, text: trimmed, parsed: parsed)
+        markChanged()
+        return true
+    }
+
     func removeMeal(_ id: UUID, on day: LocalDate) {
         guard canEdit() else { return }
         data.removeMeal(id: id, on: day)
@@ -87,10 +100,19 @@ final class AppStore {
     }
 
     /// Remembers a product she taught the app and counts it in every entry that missed it.
-    func teachFood(_ item: FoodItem) {
-        guard canEdit() else { return }
+    /// Taught again (same id or name), it replaces the earlier one in every meal that used it.
+    /// Returns `false` when nothing was saved.
+    @discardableResult
+    func teachFood(_ item: FoodItem) -> Bool {
+        guard canEdit() else { return false }
         data.teachFood(item, catalog: .builtIn)
         markChanged()
+        return true
+    }
+
+    /// One of the products she taught the app, as it is stored now.
+    func userFood(id: String) -> FoodItem? {
+        data.userFoods.first { $0.id == id }
     }
 
     func addWater(_ delta: Int, to slot: WaterDay.Slot, on day: LocalDate) {
@@ -114,11 +136,21 @@ final class AppStore {
         markChanged()
     }
 
-    func saveNutrition(profile: NutritionProfile, targets: TargetsSetting) {
-        guard canEdit() else { return }
-        data.nutritionProfile = profile
+    /// Saves how her daily targets are set. A `nil` profile keeps the stored one, so her own
+    /// targets can be saved without giving any personal data – unless `clearsProfile` says she
+    /// emptied every field about herself; then the stored one goes too. Returns `false` when
+    /// nothing was saved.
+    @discardableResult
+    func saveNutrition(profile: NutritionProfile?, targets: TargetsSetting, clearsProfile: Bool = false) -> Bool {
+        guard canEdit() else { return false }
+        if let profile {
+            data.nutritionProfile = profile
+        } else if clearsProfile {
+            data.nutritionProfile = nil
+        }
         data.targetsSetting = targets
         markChanged()
+        return true
     }
 
     /// Her weigh-ins with the smoothed trend line.
@@ -190,9 +222,15 @@ final class AppStore {
         unreadPersistence = nil
 
         if AppDataCoding.isFromNewerVersion(raw) {
-            data = (try? AppDataCoding.decode(raw)) ?? AppData()
             readOnlyReason = "te dane zapisała nowsza wersja aplikacji. Zainstaluj ją, żeby wprowadzać zmiany"
-            problem = "te dane zapisała nowsza wersja aplikacji. Pokażę je, ale niczego nie zapiszę, żeby nic nie zginęło. Zainstaluj najnowszą wersję"
+            if let newer = try? AppDataCoding.decode(raw) {
+                data = newer
+                problem = "te dane zapisała nowsza wersja aplikacji. Pokażę je, ale niczego nie zapiszę, żeby nic nie zginęło. Zainstaluj najnowszą wersję"
+            } else {
+                // Something deep inside only a newer version knows: nothing can be shown, and
+                // nothing is written, so it all comes back once she installs that version.
+                problem = "te dane zapisała nowsza wersja aplikacji, a ja nie umiem ich jeszcze pokazać. Niczego nie zapiszę, żeby nic nie zginęło. Zainstaluj najnowszą wersję"
+            }
             return
         }
 

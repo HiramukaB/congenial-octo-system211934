@@ -49,10 +49,22 @@ struct BalanceCard: View {
     }
 
     private func summary(eaten: Macros, targets: Macros) -> String {
-        let left = (targets - eaten)
-        if eaten.kcal <= 0 {
+        let hasMeals = !store.data.meals(on: day).isEmpty
+        if day < store.today {
+            // A past day: what she ate, in the past tense and without judging it against
+            // today's targets (they may have changed since).
+            guard hasMeals else {
+                return "z tego dnia nie mam zapisanych posiłków"
+            }
+            guard eaten.kcal > 0 else {
+                return "tego dnia nie policzyłam jeszcze żadnych kcal"
+            }
+            return "tego dnia zjadłaś ok. \(FoodFormat.whole(eaten.kcal)) kcal i \(FoodFormat.whole(eaten.protein)) g białka"
+        }
+        guard hasMeals else {
             return "tu zobaczysz, ile zostało Ci do celu, gdy zapiszesz pierwszy posiłek"
         }
+        let left = targets - eaten
         if left.kcal >= 0 {
             let protein = FoodFormat.whole(Swift.max(0, left.protein))
             return "do celu zostało Ci \(FoodFormat.whole(left.kcal)) kcal i \(protein) g białka"

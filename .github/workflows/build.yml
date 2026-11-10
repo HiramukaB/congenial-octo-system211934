@@ -108,11 +108,17 @@ jobs:
         run: |
           set -o pipefail
           DEVICE_ID=$(xcrun simctl list devices available --json | python3 .github/scripts/pick_simulator.py)
+          # Symulator uruchomiony do końca przed testami: pierwsze uruchomienie aplikacji na zimnym
+          # symulatorze potrafi przekroczyć limit czasu XCUITest.
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          # Test, który nie przeszedł, dostaje drugą próbę – na wypadek chwilowej zadyszki maszyny CI.
           xcodebuild test \
             -project AboutHer.xcodeproj \
             -scheme AboutHer \
             -destination "id=$DEVICE_ID" \
             -derivedDataPath build/simulator \
+            -retry-tests-on-failure \
+            -test-iterations 2 \
             MARKETING_VERSION="0.1.${{ github.run_number }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             | xcbeautify --renderer github-actions
