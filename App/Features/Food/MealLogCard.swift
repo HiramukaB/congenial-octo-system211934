@@ -11,6 +11,11 @@ struct MealLogCard: View {
     let onTeach: (String) -> Void
     /// Opens one of her own products, to correct what she taught the app.
     let onEditFood: (FoodItem) -> Void
+    /// Scrolls the screen so the open field (`editorID`) sits just above the keyboard.
+    var keepEditorInSight: () -> Void = {}
+
+    /// The scroll id of the open field, for `keepEditorInSight`.
+    static let editorID = "meal-editor"
 
     /// What the field is writing; nil while it is closed.
     @State private var editing: Editing? = nil
@@ -45,6 +50,14 @@ struct MealLogCard: View {
                 }
                 if let editing {
                     editor(editing)
+                        .id(Self.editorID)
+                        // The keyboard keeps in sight only the line she is typing, so when the preview
+                        // above it gains a line (or the text a new row) the field would slip under it.
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.height
+                        } action: { _ in
+                            keepEditorInSight()
+                        }
                 } else if entries.isEmpty {
                     emptyState
                 }
@@ -157,13 +170,14 @@ struct MealLogCard: View {
     }
 
     private func hint(for editing: Editing) -> String {
+        // The return key shows a checkmark rather than a word, so the hint speaks of the keyboard.
         guard editing.mealID != nil else {
-            return "zapiszę to, gdy stukniesz „gotowe” albo schowasz klawiaturę"
+            return "zapiszę to, gdy schowasz klawiaturę"
         }
         if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "pusty tekst niczego nie zmieni – posiłek usuniesz, przesuwając go w lewo"
         }
-        return "zapiszę poprawkę, gdy stukniesz „gotowe” albo schowasz klawiaturę"
+        return "zapiszę poprawkę, gdy schowasz klawiaturę"
     }
 
     /// The meals above and below the field. A meal she is correcting is replaced by the field;

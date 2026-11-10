@@ -15,24 +15,28 @@ struct FoodView: View {
     var body: some View {
         let today = store.today
         let day = today.adding(days: dayOffset)
-        Screen(tint: store.cycle.phase(on: day, today: today)?.phase.tint) {
-            Text("jedzenie").screenTitle()
-            DaySwitcher(date: day,
-                        isToday: dayOffset == 0,
-                        onPrevious: { dayOffset -= 1 },
-                        onNext: { dayOffset = min(0, dayOffset + 1) },
-                        onToday: { dayOffset = 0 })
-            BalanceCard(day: day, onEditTargets: { isEditingTargets = true })
-            MealLogCard(day: day,
-                        onTeach: { teachRequest = TeachRequest(name: $0) },
-                        onEditFood: { teachRequest = TeachRequest(name: $0.name, existing: $0) })
-            WaterCard(day: day)
-            WeightCard(day: day)
-            Text(polish: "wszystkie wartości są orientacyjne – to szacunek, nie dokładny pomiar")
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
+        // Around the screen's scroll view, so the meal field can keep itself above the keyboard.
+        ScrollViewReader { scroll in
+            Screen(tint: store.cycle.phase(on: day, today: today)?.phase.tint) {
+                Text("jedzenie").screenTitle()
+                DaySwitcher(date: day,
+                            isToday: dayOffset == 0,
+                            onPrevious: { dayOffset -= 1 },
+                            onNext: { dayOffset = min(0, dayOffset + 1) },
+                            onToday: { dayOffset = 0 })
+                BalanceCard(day: day, onEditTargets: { isEditingTargets = true })
+                MealLogCard(day: day,
+                            onTeach: { teachRequest = TeachRequest(name: $0) },
+                            onEditFood: { teachRequest = TeachRequest(name: $0.name, existing: $0) },
+                            keepEditorInSight: { scroll.scrollTo(MealLogCard.editorID, anchor: .bottom) })
+                WaterCard(day: day)
+                WeightCard(day: day)
+                Text(polish: "wszystkie wartości są orientacyjne – to szacunek, nie dokładny pomiar")
+                    .font(.caption)
+                    .foregroundStyle(Palette.muted)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
         }
         .sheet(item: $teachRequest) { request in
             TeachFoodSheet(suggestedName: request.name, existing: request.existing)
