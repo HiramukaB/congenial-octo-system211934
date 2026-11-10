@@ -57,7 +57,8 @@ public struct FoodItem: Codable, Sendable, Hashable, Identifiable {
     public var tags: [NutrientTag]
     /// The name or aliases that mean one piece ("naleśnik" of naleśniki): with no amount, one of these is
     /// the default portion, not the serving of several. Optional, so her own products and files written
-    /// before it need none.
+    /// before it need none. Only the catalog sets it: her own products never do, and nil isn't written,
+    /// so it never reaches her file. A version that lets her set it must raise `AppData.currentSchemaVersion`.
     public var singular: [String]?
 
     public init(id: String, name: String, aliases: [String] = [], category: FoodCategory, per100: Macros,

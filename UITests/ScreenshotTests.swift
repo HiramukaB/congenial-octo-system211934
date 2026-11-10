@@ -16,6 +16,28 @@ func saveScreenshot(named name: String, in testCase: XCTestCase) {
     try? screenshot.pngRepresentation.write(to: folder.appendingPathComponent("\(name).png"))
 }
 
+/// In CI, adds a line to "timings.txt" next to the screenshots: how long each screen took, so a
+/// screen that got slower shows up in the artifact.
+func saveTiming(_ line: String) {
+    guard let hostHome = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] else { return }
+    let folder = URL(fileURLWithPath: hostHome).appendingPathComponent("screenshots", isDirectory: true)
+    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let file = folder.appendingPathComponent("timings.txt")
+    let data = Data((line + "\n").utf8)
+    if let handle = try? FileHandle(forWritingTo: file) {
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: data)
+    } else {
+        try? data.write(to: file)
+    }
+}
+
+/// Seconds since `start`, for `saveTiming`.
+func seconds(since start: Date) -> String {
+    String(format: "%.1f s", Date().timeIntervalSince(start))
+}
+
 /// Launches every tab with fictional demo data and saves a screenshot of it, then the food tab
 /// while a meal is typed and the targets sheet.
 final class ScreenshotTests: XCTestCase {
@@ -27,15 +49,24 @@ final class ScreenshotTests: XCTestCase {
             let app = XCUIApplication()
             // A still background lets the app become idle, so UI automation stays fast and reliable.
             app.launchArguments = ["-demoData", "-stillBackground", "-startTab", tab]
+            let start = Date()
             app.launch()
             XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15), "the app did not start")
+            let launched = seconds(since: start)
+            // The tab bar comes with the first frame. On a busy machine the screen can still be black
+            // right after the launch, so the screenshot waits for it.
+            let shown = Date()
+            XCTAssertTrue(app.buttons.firstMatch.waitForExistence(timeout: 30), "the \(tab) tab never appeared")
+            saveTiming("\(tab): launch \(launched), first frame after \(seconds(since: shown))")
             // Let the layout settle.
             Thread.sleep(forTimeInterval: 2)
             XCTAssertEqual(app.state, .runningForeground, "the app quit on the \(tab) tab")
             saveScreenshot(named: String(format: "%02d-%@", index + 1, tab), in: self)
             if tab == "food" || tab == "today" {
                 // The lower half of the longer screens.
+                let swipe = Date()
                 app.swipeUp()
+                saveTiming("\(tab): swipe \(seconds(since: swipe))")
                 Thread.sleep(forTimeInterval: 1)
                 saveScreenshot(named: String(format: "%02d-%@-2", index + 1, tab), in: self)
             }
@@ -75,7 +106,11 @@ final class ScreenshotTests: XCTestCase {
             keyboardTip.tap()
             Thread.sleep(forTimeInterval: 0.5)
         }
-        app.typeText("kurczak ryż brokuł, kawa z mlekiem")
+        // Every keystroke counts the whole text again for the live preview.
+        let meal = "kurczak ryż brokuł, kawa z mlekiem"
+        let typing = Date()
+        app.typeText(meal)
+        saveTiming("typing \(meal.count) characters: \(seconds(since: typing))")
         Thread.sleep(forTimeInterval: 1.5)
         saveScreenshot(named: "06-food-typing", in: self)
     }
@@ -98,6 +133,7 @@ final class ScreenshotTests: XCTestCase {
         app.launchArguments = ["-demoData", "-stillBackground", "-startTab", "food"]
         app.launch()
         _ = app.wait(for: .runningForeground, timeout: 15)
+        _ = app.buttons.firstMatch.waitForExistence(timeout: 30)
         // Let the layout settle.
         Thread.sleep(forTimeInterval: 2)
         return app
