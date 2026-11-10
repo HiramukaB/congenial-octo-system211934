@@ -33,13 +33,15 @@ struct TodayView: View {
             } else {
                 PastDayCycleCard(info: info, cycleDay: engine.cycleDay(on: date))
             }
+            TodayIntentionCard(day: date)
             DaySummaryCard(eaten: store.data.eaten(on: date),
-                           targets: store.targets,
+                           targets: store.targetsWithMovement(on: date),
                            glasses: store.data.water(on: date).total,
                            onOpenFood: {
                                foodDayOffset = dayOffset
                                selectedTab = .food
                            })
+            SymptomsCard(day: date)
             if let phase = guidePhase(info: info, status: status) {
                 PhaseGuideCard(phase: phase)
             }

@@ -49,9 +49,14 @@ struct RootView: View {
         .onChange(of: scenePhase, initial: true) { oldPhase, phase in
             if phase == .active {
                 store.refreshToday()
+                NotificationScheduler.refresh(store)
             } else if oldPhase != phase {
                 store.saveNow()
             }
+        }
+        // Her reminder settings, or what the reminders depend on, changed while the app is open.
+        .onChange(of: NotificationScheduler.inputs(store)) {
+            NotificationScheduler.refresh(store)
         }
         // Midnight (and time zone changes) while the app stays open.
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
@@ -77,5 +82,7 @@ struct RootView: View {
         } message: {
             Text(store.problem ?? "")
         }
+        // Face ID and the cover in the app switcher, over everything above.
+        .appLock()
     }
 }

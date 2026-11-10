@@ -1,7 +1,8 @@
 import SwiftUI
 import AboutHerCore
 
-/// "bilans dnia": what she ate on the day against her daily targets.
+/// "bilans dnia": what she ate on the day against her daily targets. The movement she logged that
+/// day adds to the kcal target.
 struct BalanceCard: View {
     @Environment(AppStore.self) private var store
     let day: LocalDate
@@ -9,6 +10,7 @@ struct BalanceCard: View {
 
     var body: some View {
         let eaten = store.data.eaten(on: day)
+        let movementKcal = store.movementKcal(on: day).rounded()
         Card {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -24,8 +26,14 @@ struct BalanceCard: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Twoje cele dzienne")
                 }
-                if let targets = store.targets {
+                if let targets = store.targetsWithMovement(on: day) {
                     MacroRow(label: "kcal", eaten: eaten.kcal, target: targets.kcal, unit: "")
+                    if movementKcal >= 1 {
+                        Text("w tym ruch: +\(FoodFormat.whole(movementKcal)) kcal")
+                            .font(.caption)
+                            .foregroundStyle(Palette.muted)
+                            .padding(.top, -6)
+                    }
                     MacroRow(label: "białko", eaten: eaten.protein, target: targets.protein, unit: " g")
                     MacroRow(label: "węglowodany", eaten: eaten.carbs, target: targets.carbs, unit: " g")
                     MacroRow(label: "tłuszcz", eaten: eaten.fat, target: targets.fat, unit: " g")

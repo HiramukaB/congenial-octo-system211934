@@ -26,20 +26,28 @@ final class AppStore {
     @ObservationIgnored private var hasUnsavedChanges = false
     @ObservationIgnored private var pendingSave: Task<Void, Never>?
     @ObservationIgnored private var parserCache: (foods: [FoodItem], parser: MealParser)?
+    /// Where her progress photos are kept: one JPEG per photo in a folder next to her data file,
+    /// never inside the data file and never in her photo library. The demo uses a temporary folder,
+    /// so it never touches her files.
+    let photosDirectory: URL
 
-    init(data: AppData, persistence: Persistence?, today: LocalDate = .today()) {
+    init(data: AppData, persistence: Persistence?, photosDirectory: URL, today: LocalDate = .today()) {
         self.data = data
         self.persistence = persistence
+        self.photosDirectory = photosDirectory
         self.today = today
     }
 
     /// The real store, or – with the "-demoData" launch argument – a fictional history kept only in memory.
     static func makeDefault() -> AppStore {
         if ProcessInfo.processInfo.arguments.contains("-demoData") {
-            return AppStore(data: DemoData.make(today: .today()), persistence: nil)
+            let demoPhotos = FileManager.default.temporaryDirectory
+                .appending(path: "AboutHer-demo-photos", directoryHint: .isDirectory)
+            return AppStore(data: DemoData.make(today: .today()), persistence: nil, photosDirectory: demoPhotos)
         }
-        let store = AppStore(data: AppData(), persistence: nil)
-        store.unreadPersistence = Persistence.live()
+        let live = Persistence.live()
+        let store = AppStore(data: AppData(), persistence: nil, photosDirectory: live.photosDirectory)
+        store.unreadPersistence = live
         store.openSavedData(isActive: false)
         return store
     }
@@ -49,6 +57,22 @@ final class AppStore {
     }
 
     // MARK: - Changes
+
+    /// Makes one change to her data and saves it shortly after, like every change in the app.
+    /// Refused (returns `false`) while her file hasn't been read and in read-only mode – she is
+    /// told why. A change that changes nothing isn't saved. The features' own extensions
+    /// (AppStore+Symptoms, +Settings, +Movement, +Inner, +Moment) make their changes through it.
+    @discardableResult
+    func change(_ body: (inout AppData) -> Void) -> Bool {
+        guard canEdit() else { return false }
+        var updated = data
+        body(&updated)
+        if updated != data {
+            data = updated
+            markChanged()
+        }
+        return true
+    }
 
     func togglePeriodDay(_ date: LocalDate) {
         // Future days can't be marked, but a future day marked earlier can still be removed.

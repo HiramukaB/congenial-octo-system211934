@@ -39,7 +39,7 @@ func seconds(since start: Date) -> String {
 }
 
 /// Launches every tab with fictional demo data and saves a screenshot of it, then the food tab
-/// while a meal is typed and the targets sheet.
+/// while a meal is typed, the targets sheet and the screens "ja" opens.
 final class ScreenshotTests: XCTestCase {
     private let tabs = ["today", "calendar", "food", "movement", "me"]
 
@@ -62,7 +62,7 @@ final class ScreenshotTests: XCTestCase {
             Thread.sleep(forTimeInterval: 2)
             XCTAssertEqual(app.state, .runningForeground, "the app quit on the \(tab) tab")
             saveScreenshot(named: String(format: "%02d-%@", index + 1, tab), in: self)
-            if tab == "food" || tab == "today" {
+            if tab == "food" || tab == "today" || tab == "movement" {
                 // The lower half of the longer screens.
                 let swipe = Date()
                 app.swipeUp()
@@ -125,6 +125,59 @@ final class ScreenshotTests: XCTestCase {
         _ = app.navigationBars["Twoje cele dzienne"].waitForExistence(timeout: 5)
         Thread.sleep(forTimeInterval: 1)
         saveScreenshot(named: "07-food-targets", in: self)
+    }
+
+    /// Best effort, with fictional demo data: the screens "ja" opens – "chwila dla siebie",
+    /// "wnętrze" and "ustawienia" – each with its lower half. Every screen gets its own launch; an
+    /// entry that doesn't show up is skipped, and so are its screenshots. It runs after the tests
+    /// above (name order), on a warm simulator.
+    @MainActor
+    func testMeScreens() {
+        captureMeScreen(opening: "chwila dla siebie", named: "08-me-moment")
+        captureMeScreen(opening: "wnętrze", named: "09-me-inner")
+        captureMeScreen(opening: "ustawienia", named: "10-me-settings")
+    }
+
+    @MainActor
+    private func captureMeScreen(opening title: String, named name: String) {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoData", "-stillBackground", "-startTab", "me"]
+        let start = Date()
+        app.launch()
+        defer { app.terminate() }
+        guard app.wait(for: .runningForeground, timeout: 15) else { return }
+        let launched = seconds(since: start)
+        let shown = Date()
+        guard app.buttons.firstMatch.waitForExistence(timeout: 30) else { return }
+        saveTiming("\(name): launch \(launched), first frame after \(seconds(since: shown))")
+        // Let the layout settle.
+        Thread.sleep(forTimeInterval: 2)
+        // An entry reads as its title, then the line about what is inside.
+        let startsWithTitle = NSPredicate(format: "label BEGINSWITH %@", title)
+        var entry = app.buttons.matching(startsWithTitle).firstMatch
+        if !entry.waitForExistence(timeout: 10) {
+            entry = app.descendants(matching: .any).matching(startsWithTitle).firstMatch
+            guard entry.waitForExistence(timeout: 2) else { return }
+        }
+        if !entry.isHittable {
+            app.swipeUp()
+            Thread.sleep(forTimeInterval: 1)
+        }
+        guard entry.isHittable else { return }
+        let opening = Date()
+        entry.tap()
+        // The screen it opens has a bar with the way back to "ja".
+        _ = app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5)
+        saveTiming("\(name): open \(seconds(since: opening))")
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertEqual(app.state, .runningForeground, "the app quit on \(title)")
+        saveScreenshot(named: name, in: self)
+        // The lower half of the screen.
+        let swipe = Date()
+        app.swipeUp()
+        saveTiming("\(name): swipe \(seconds(since: swipe))")
+        Thread.sleep(forTimeInterval: 1)
+        saveScreenshot(named: "\(name)-2", in: self)
     }
 
     @MainActor

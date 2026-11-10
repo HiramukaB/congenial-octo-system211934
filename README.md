@@ -11,24 +11,25 @@ Cykl, jedzenie, ruch, sen i wnętrze w jednym miejscu, w zgodzie z rytmem cyklu 
 | Część | Status |
 |---|---|
 | Design system: kolory, gwiazdka, animowane tło, karty | gotowe |
-| 5 zakładek: dziś · kalendarz · jedzenie · ruch · ja | szkielet |
+| 5 zakładek: dziś · kalendarz · jedzenie · ruch · ja | gotowe |
 | Cykl: kalendarz okresu, fazy z poziomem pewności, prognoza, spóźnienia, plamienia | gotowe |
 | Zapis danych (plik JSON) z dziennymi kopiami i odtwarzaniem z kopii | gotowe |
 | Ikona aplikacji (`Tools/make_app_icon.py`) | gotowe |
 | Jedzenie: posiłki wpisywane zwykłym tekstem (polski parser, baza produktów na 100 g, uczenie nowych produktów), bilans dnia z celami z profilu, woda, waga z linią trendu | gotowe |
 | Przepisy dopasowane do fazy, plan tygodnia, zakupy | w budowie |
-| Ruch, wnętrze | w budowie |
+| Samopoczucie, przypomnienia, blokada Face ID, ruch, wnętrze, list do siebie, zdjęcia, chwila dla siebie | wersja podstawowa |
 
 ## Struktura
 
 ```
 App/                      aplikacja SwiftUI
   DesignSystem/           kolory, typografia, gwiazdka, animowane tło, karty
-  Features/               ekrany: Today, Calendar, Me i zakładki w budowie
+  Features/               ekrany wszystkich zakładek i ekrany „ja”
   Store/                  stan aplikacji i zapis do pliku
-Packages/AboutHerCore/    logika bez interfejsu (daty, silnik cyklu, jedzenie, dane) + testy
+  System/                 blokada Face ID i przypomnienia
+Packages/AboutHerCore/    logika bez interfejsu (daty, cykl, jedzenie, ruch, przypomnienia, dane) + testy
 Tools/food/               źródło bazy produktów i parser posiłków w Pythonie (sprawdzanie bez Swifta)
-UITests/                  zrzuty ekranu każdej zakładki i test zapisu danych
+UITests/                  zrzuty ekranu każdej zakładki i ekranów „ja”, test zapisu danych
 project.yml               definicja projektu dla XcodeGen (.xcodeproj się generuje)
 .github/workflows/        budowanie w chmurze
 ```
@@ -118,3 +119,6 @@ ani danych, jeśli to ten sam Apple ID), a potem w AltStore Refresh All.
   wyliczenia) starsza wersja otwiera tylko do odczytu i nigdy go nie nadpisuje. Nieznanych pól głębiej
   w pliku nie zauważa, dlatego każde nowe pole i każda nowa wartość wyliczenia, także zagnieżdżone,
   wymagają podniesienia `schemaVersion`.
+- Zdjęcia postępów: pliki JPEG w `Application Support/AboutHer/Zdjecia/`, obok pliku danych, ale poza
+  nim i poza dziennymi kopiami – usunięcie aplikacji je kasuje, a po wczytaniu kopii wpis może wskazywać
+  brakujące zdjęcie (aplikacja pokazuje wtedy łagodny zastępnik).

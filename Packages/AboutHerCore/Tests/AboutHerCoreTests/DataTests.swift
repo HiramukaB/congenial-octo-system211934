@@ -329,11 +329,16 @@ struct DataTests {
         #expect(appData.targetsSetting == .manual(Macros(kcal: 1650, protein: 110, carbs: 190, fat: 55)))
         #expect(appData.userFoods.first?.tags == [NutrientTag.protein, .calcium])
 
-        // Written back, every key and value is still there; only the version is the current one.
+        // Written back, every key and value is still there; only the version is the current one,
+        // and the fields added in schema 3 are written next to them.
         let written = try AppDataCoding.encode(appData)
         let original = try JSONDecoder().decode(JSONValue.self, from: raw)
         let rewritten = try JSONDecoder().decode(JSONValue.self, from: written)
-        #expect(rewritten == original.setting("schemaVersion", to: .number(Double(AppData.currentSchemaVersion))))
+        let addedInSchema3 = ["symptoms", "intentions", "wins", "manifest", "reflections", "letters", "photos",
+                              "moments", "workouts", "training", "settings"]
+        #expect(rewritten.removing(addedInSchema3)
+                == original.setting("schemaVersion", to: .number(Double(AppData.currentSchemaVersion))))
+        #expect(addedInSchema3.allSatisfy { rewritten.hasKey($0) })
         var current = appData
         current.schemaVersion = AppData.currentSchemaVersion
         #expect(try AppDataCoding.decode(written) == current)
@@ -396,5 +401,17 @@ private enum JSONValue: Decodable, Equatable {
         var updated = fields
         updated[key] = value
         return .object(updated)
+    }
+
+    /// The same object without `keys`.
+    func removing(_ keys: [String]) -> JSONValue {
+        guard case .object(let fields) = self else { return self }
+        return .object(fields.filter { !keys.contains($0.key) })
+    }
+
+    /// Whether this is an object with `key`.
+    func hasKey(_ key: String) -> Bool {
+        guard case .object(let fields) = self else { return false }
+        return fields[key] != nil
     }
 }

@@ -7,6 +7,9 @@ struct Persistence {
 
     var fileURL: URL { directory.appending(path: "about-her.json") }
     var backupDirectory: URL { directory.appending(path: "Kopie", directoryHint: .isDirectory) }
+    /// Her progress photos, one JPEG each (`ProgressPhoto.fileName`). They are not in her data file,
+    /// so the daily copies don't include them.
+    var photosDirectory: URL { directory.appending(path: "Zdjecia", directoryHint: .isDirectory) }
 
     static func live() -> Persistence {
         let fileManager = FileManager.default

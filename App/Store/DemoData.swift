@@ -34,6 +34,13 @@ enum DemoData {
                      on: today.adding(days: -1))
         data.addWater(2, to: .morning, on: today)
         data.addWater(2, to: .midday, on: today)
+
+        // One part of the app each, every one in its own file (DemoData+….swift).
+        addSymptoms(to: &data, today: today)
+        addSettings(to: &data, today: today)
+        addMovement(to: &data, today: today)
+        addInner(to: &data, today: today)
+        addMoment(to: &data, today: today)
         return data
     }
 }
