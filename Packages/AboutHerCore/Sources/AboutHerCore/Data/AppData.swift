@@ -6,14 +6,18 @@ import Foundation
 /// when new fields are added – and every such addition still raises `currentSchemaVersion`.
 public struct AppData: Codable, Sendable, Equatable {
     /// 2: food (meals, taught products, water, weight, profile, targets).
+    /// 3: symptoms; the inner self (intentions, small wins, manifest, weekly reflections, letters,
+    ///    photo metadata); notes from "chwila dla siebie"; workouts and the training stage;
+    ///    settings (reminders, the lock).
     ///
     /// Raise it for every new stored field and every new enum case, nested ones included (in a
-    /// meal, a product, a portion, the profile, the targets …). An older version recognises a
-    /// newer file only by this number, by its top-level keys and by whether it can decode the
-    /// file at all (`AppDataCoding.isFromNewerVersion`); a nested field it doesn't know it would
-    /// drop without a word on its next save. Never remove or rename a field or a case either:
-    /// older files would then read as coming from a newer version and stay read-only.
-    public static let currentSchemaVersion = 2
+    /// meal, a product, a portion, the profile, the targets, a symptom day, a workout, the
+    /// settings …). An older version recognises a newer file only by this number, by its
+    /// top-level keys and by whether it can decode the file at all
+    /// (`AppDataCoding.isFromNewerVersion`); a nested field it doesn't know it would drop without
+    /// a word on its next save. Never remove or rename a field or a case either: older files
+    /// would then read as coming from a newer version and stay read-only.
+    public static let currentSchemaVersion = 3
 
     public var schemaVersion: Int
     /// Days she marked as bleeding.
@@ -30,6 +34,28 @@ public struct AppData: Codable, Sendable, Equatable {
     public var nutritionProfile: NutritionProfile?
     /// Computed from the profile, or her own numbers.
     public var targetsSetting: TargetsSetting
+    /// How she felt, per day; only days with something marked.
+    public var symptoms: [LocalDate: SymptomDay]
+    /// Her intention for the day, per day.
+    public var intentions: [LocalDate: String]
+    /// Small wins, in the order she wrote them.
+    public var wins: [SmallWin]
+    /// "kim się stajesz", in her own words.
+    public var manifest: String
+    /// Weekly reflections, under the Monday of their week (`LocalDate.startOfWeek`).
+    public var reflections: [LocalDate: WeeklyReflection]
+    /// Letters to herself, each sealed until its day.
+    public var letters: [Letter]
+    /// Progress photos – only which ones and their days; the JPEG files live in the app's photos folder.
+    public var photos: [ProgressPhoto]
+    /// What she wrote in "chwila dla siebie".
+    public var moments: [MomentNote]
+    /// Workouts per day, in the order she logged them.
+    public var workouts: [LocalDate: [Workout]]
+    /// The stage of her movement plan.
+    public var training: TrainingProgress
+    /// Reminders and the lock.
+    public var settings: AppSettings
 
     public init(periodDays: Set<LocalDate> = [],
                 meals: [LocalDate: [MealEntry]] = [:],
@@ -37,7 +63,18 @@ public struct AppData: Codable, Sendable, Equatable {
                 water: [LocalDate: WaterDay] = [:],
                 weights: [LocalDate: Double] = [:],
                 nutritionProfile: NutritionProfile? = nil,
-                targetsSetting: TargetsSetting = .automatic) {
+                targetsSetting: TargetsSetting = .automatic,
+                symptoms: [LocalDate: SymptomDay] = [:],
+                intentions: [LocalDate: String] = [:],
+                wins: [SmallWin] = [],
+                manifest: String = "",
+                reflections: [LocalDate: WeeklyReflection] = [:],
+                letters: [Letter] = [],
+                photos: [ProgressPhoto] = [],
+                moments: [MomentNote] = [],
+                workouts: [LocalDate: [Workout]] = [:],
+                training: TrainingProgress = TrainingProgress(),
+                settings: AppSettings = AppSettings()) {
         self.schemaVersion = AppData.currentSchemaVersion
         self.periodDays = periodDays
         self.meals = meals
@@ -46,6 +83,17 @@ public struct AppData: Codable, Sendable, Equatable {
         self.weights = weights
         self.nutritionProfile = nutritionProfile
         self.targetsSetting = targetsSetting
+        self.symptoms = symptoms
+        self.intentions = intentions
+        self.wins = wins
+        self.manifest = manifest
+        self.reflections = reflections
+        self.letters = letters
+        self.photos = photos
+        self.moments = moments
+        self.workouts = workouts
+        self.training = training
+        self.settings = settings
     }
 
     public mutating func togglePeriodDay(_ date: LocalDate) {
@@ -147,6 +195,8 @@ public struct AppData: Codable, Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, periodDays, meals, userFoods, water, weights, nutritionProfile, targetsSetting
+        // Schema 3
+        case symptoms, intentions, wins, manifest, reflections, letters, photos, moments, workouts, training, settings
     }
 
     public init(from decoder: any Decoder) throws {
@@ -159,6 +209,17 @@ public struct AppData: Codable, Sendable, Equatable {
         weights = try container.decodeIfPresent([LocalDate: Double].self, forKey: .weights) ?? [:]
         nutritionProfile = try container.decodeIfPresent(NutritionProfile.self, forKey: .nutritionProfile)
         targetsSetting = try container.decodeIfPresent(TargetsSetting.self, forKey: .targetsSetting) ?? .automatic
+        symptoms = try container.decodeIfPresent([LocalDate: SymptomDay].self, forKey: .symptoms) ?? [:]
+        intentions = try container.decodeIfPresent([LocalDate: String].self, forKey: .intentions) ?? [:]
+        wins = try container.decodeIfPresent([SmallWin].self, forKey: .wins) ?? []
+        manifest = try container.decodeIfPresent(String.self, forKey: .manifest) ?? ""
+        reflections = try container.decodeIfPresent([LocalDate: WeeklyReflection].self, forKey: .reflections) ?? [:]
+        letters = try container.decodeIfPresent([Letter].self, forKey: .letters) ?? []
+        photos = try container.decodeIfPresent([ProgressPhoto].self, forKey: .photos) ?? []
+        moments = try container.decodeIfPresent([MomentNote].self, forKey: .moments) ?? []
+        workouts = try container.decodeIfPresent([LocalDate: [Workout]].self, forKey: .workouts) ?? [:]
+        training = try container.decodeIfPresent(TrainingProgress.self, forKey: .training) ?? TrainingProgress()
+        settings = try container.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -173,6 +234,17 @@ public struct AppData: Codable, Sendable, Equatable {
         try container.encode(weights, forKey: .weights)
         try container.encodeIfPresent(nutritionProfile, forKey: .nutritionProfile)
         try container.encode(targetsSetting, forKey: .targetsSetting)
+        try container.encode(symptoms, forKey: .symptoms)
+        try container.encode(intentions, forKey: .intentions)
+        try container.encode(wins, forKey: .wins)
+        try container.encode(manifest, forKey: .manifest)
+        try container.encode(reflections, forKey: .reflections)
+        try container.encode(letters, forKey: .letters)
+        try container.encode(photos, forKey: .photos)
+        try container.encode(moments, forKey: .moments)
+        try container.encode(workouts, forKey: .workouts)
+        try container.encode(training, forKey: .training)
+        try container.encode(settings, forKey: .settings)
     }
 }
 

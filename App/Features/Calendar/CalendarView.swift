@@ -1,10 +1,13 @@
 import SwiftUI
 import AboutHerCore
 
-/// "kalendarz": tap a day to mark or unmark a period; phases appear as coloured dots.
+/// "kalendarz": tap a day to mark or unmark a period; phases appear as coloured dots. A long press
+/// on a day opens how she felt that day, and a small star marks the days she noted it.
 struct CalendarView: View {
     @Environment(AppStore.self) private var store
     @State private var month = LocalDate.today().firstOfMonth
+    /// The day whose "jak się czułaś" card is open in a sheet.
+    @State private var symptomsDay: SymptomsSheetDay? = nil
 
     var body: some View {
         let engine = store.cycle
@@ -12,9 +15,13 @@ struct CalendarView: View {
 
         Screen(tint: engine.phase(on: today, today: today)?.phase.tint) {
             Text("kalendarz").screenTitle()
-            MonthCard(month: $month, engine: engine, periodDays: store.data.periodDays, today: today) { date in
-                store.togglePeriodDay(date)
-            }
+            MonthCard(month: $month,
+                      engine: engine,
+                      periodDays: store.data.periodDays,
+                      symptomDays: Set(store.data.symptoms.keys),
+                      today: today,
+                      onShowSymptoms: { symptomsDay = SymptomsSheetDay(day: $0) },
+                      onToggle: { store.togglePeriodDay($0) })
             CycleStatsCard(stats: engine.stats, periodCount: engine.periods.count)
             PeriodHistoryCard(periods: engine.periods)
         }
@@ -23,6 +30,9 @@ struct CalendarView: View {
             if month == oldDay.firstOfMonth {
                 month = newDay.firstOfMonth
             }
+        }
+        .sheet(item: $symptomsDay) { request in
+            SymptomsSheet(day: request.day)
         }
     }
 }
@@ -36,8 +46,12 @@ struct MonthCard: View {
     @Binding var month: LocalDate
     let engine: CycleEngine
     let periodDays: Set<LocalDate>
+    /// The days she noted how she felt.
+    let symptomDays: Set<LocalDate>
     let today: LocalDate
     @State var toggles = 0
+    /// A long press on a day: how she felt that day.
+    let onShowSymptoms: (LocalDate) -> Void
     let onToggle: (LocalDate) -> Void
 
     var body: some View {
@@ -70,7 +84,10 @@ struct MonthCard: View {
                                     info: engine.phase(on: date, today: today),
                                     isMarked: periodDays.contains(date),
                                     isToday: date == today,
-                                    isFuture: date > today) {
+                                    isFuture: date > today,
+                                    hasSymptoms: symptomDays.contains(date),
+                                    symptomsTitle: SymptomsCard.title(on: date, today: today),
+                                    onShowSymptoms: { onShowSymptoms(date) }) {
                                 toggles += 1
                                 onToggle(date)
                             }
@@ -82,7 +99,7 @@ struct MonthCard: View {
                 // The day numbers sit in fixed circles; beyond this size they would no longer fit.
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 CalendarLegend()
-                Text(polish: "dotknij dnia, żeby zaznaczyć albo odznaczyć okres")
+                Text(polish: "dotknij dnia, żeby zaznaczyć albo odznaczyć okres, a przytrzymaj go, żeby zapisać, jak się wtedy czułaś")
                     .font(.footnote)
                     .foregroundStyle(Palette.muted)
                     .multilineTextAlignment(.center)
@@ -116,29 +133,63 @@ struct DayCell: View {
     let isMarked: Bool
     let isToday: Bool
     let isFuture: Bool
+    /// She noted how she felt that day: a small star under the number.
+    let hasSymptoms: Bool
+    /// The question of that day's card, for the long-press menu.
+    let symptomsTitle: String
+    let onShowSymptoms: () -> Void
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 3) {
-                Text(String(date.day))
-                    .font(.subheadline.weight(isMarked ? .semibold : .regular))
-                    .foregroundStyle(numberColor)
-                    .frame(width: 34, height: 34)
-                    .background { marker }
-                Circle()
-                    .fill(dotColor)
-                    .frame(width: 4, height: 4)
+        withSymptomsMenu(
+            Button(action: action) {
+                VStack(spacing: 3) {
+                    Text(String(date.day))
+                        .font(.subheadline.weight(isMarked ? .semibold : .regular))
+                        .foregroundStyle(numberColor)
+                        .frame(width: 34, height: 34)
+                        .background { marker }
+                    HStack(spacing: 3) {
+                        if let dotColor {
+                            Circle()
+                                .fill(dotColor)
+                                .frame(width: 4, height: 4)
+                        }
+                        if hasSymptoms {
+                            OrganicStar()
+                                .fill(Palette.accentDim)
+                                .frame(width: 7, height: 7)
+                        }
+                    }
+                    .frame(height: 7)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 2)
-            .contentShape(Rectangle())
+            .buttonStyle(DayCellButtonStyle())
+            // A future day can't be marked, but one that was marked earlier can still be removed.
+            .disabled(isFuture && !isMarked)
+            .accessibilityLabel(Text(accessibilityText))
+            .accessibilityIdentifier("day-\(date.iso)")
+        )
+    }
+
+    /// A long press on a day she has lived opens how she felt then. A tap still marks the period.
+    @ViewBuilder
+    private func withSymptomsMenu<Cell: View>(_ cell: Cell) -> some View {
+        if isFuture {
+            cell
+        } else {
+            cell
+                .accessibilityAction(named: Text(symptomsTitle), onShowSymptoms)
+                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .contextMenu {
+                    Button(action: onShowSymptoms) {
+                        Label(symptomsTitle, systemImage: "sparkle")
+                    }
+                }
         }
-        .buttonStyle(DayCellButtonStyle())
-        // A future day can't be marked, but one that was marked earlier can still be removed.
-        .disabled(isFuture && !isMarked)
-        .accessibilityLabel(Text(accessibilityText))
-        .accessibilityIdentifier("day-\(date.iso)")
     }
 
     /// An unmarked day inside a period she marked: it counts as part of that period.
@@ -169,8 +220,9 @@ struct DayCell: View {
         return isToday ? Palette.text : Palette.text2
     }
 
-    private var dotColor: Color {
-        guard let info, !isMarked, info.phase != .menstrual else { return .clear }
+    /// The phase dot; none on period days.
+    private var dotColor: Color? {
+        guard let info, !isMarked, info.phase != .menstrual else { return nil }
         return info.phase.tint.opacity(info.confidence == .low ? 0.4 : 0.9)
     }
 
@@ -186,6 +238,9 @@ struct DayCell: View {
             } else {
                 parts.append(info.isPrediction ? "prognoza: \(info.phase.label)" : info.phase.label)
             }
+        }
+        if hasSymptoms {
+            parts.append("zapisane samopoczucie")
         }
         if isToday {
             parts.append("dziś")
@@ -211,6 +266,9 @@ struct CalendarLegend: View {
                         Circle().fill(phase.tint)
                     }
                 }
+            }
+            LegendItem(label: "samopoczucie") {
+                OrganicStar().fill(Palette.accentDim)
             }
         }
         .font(.caption2)

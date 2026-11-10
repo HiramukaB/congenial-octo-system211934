@@ -44,6 +44,10 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        # The lock she can turn on in "ustawienia".
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Face ID chroni Twoje dane w about her."
+        # Progress photos taken in the app stay in the app, never in her photo library.
+        INFOPLIST_KEY_NSCameraUsageDescription: "Zdjęcia zrobione w about her zostają tylko w aplikacji – nie trafiają do Twojej galerii."
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         SWIFT_APPROACHABLE_CONCURRENCY: YES
 
