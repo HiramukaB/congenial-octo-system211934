@@ -48,18 +48,23 @@ struct Screen<Content: View>: View {
 
 /// A soft fade of the night colour under the status bar, so text scrolled up doesn't run into
 /// the clock. It covers only the status bar and a few points below it, and takes no touches.
+///
+/// It sits at the top of the safe area. The colour behind its zero-height top reaches up
+/// through the status bar – a background extends into the safe area it touches – so it fits
+/// any status bar height without measuring it. (A GeometryReader that ignores the safe area
+/// reads its top inset as 0, which left only a sliver.)
 struct StatusBarFade: View {
+    private static let opacity = 0.9
+
     var body: some View {
-        GeometryReader { proxy in
-            LinearGradient(stops: [
-                Gradient.Stop(color: Palette.background.opacity(0.88), location: 0),
-                Gradient.Stop(color: Palette.background.opacity(0.7), location: 0.6),
-                Gradient.Stop(color: Palette.background.opacity(0), location: 1)
-            ], startPoint: .top, endPoint: .bottom)
-            .frame(height: proxy.safeAreaInsets.top + 10)
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: 0)
+                .background(Palette.background.opacity(Self.opacity), ignoresSafeAreaEdges: .top)
+            LinearGradient(colors: [Palette.background.opacity(Self.opacity), Palette.background.opacity(0)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: 14)
         }
-        // Reaching up into the status bar is what makes `safeAreaInsets.top` its height.
-        .ignoresSafeArea(edges: .top)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

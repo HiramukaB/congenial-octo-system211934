@@ -101,8 +101,15 @@ struct MealLogCard: View {
             }
     }
 
+    /// The hint and the live preview sit above the text: the keyboard keeps the line she is typing
+    /// just in sight and covers whatever is below it.
     private func editor(_ editing: Editing) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text(polish: hint(for: editing))
+                .font(.caption)
+                .foregroundStyle(Palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            preview
             TextField("np. trzy jajka, łyżeczka masła, kromka chleba żytniego", text: $draft, axis: .vertical)
                 .font(.subheadline)
                 .foregroundStyle(Palette.text)
@@ -115,11 +122,6 @@ struct MealLogCard: View {
                     // came too early.
                     isFocused = true
                 }
-            preview
-            Text(polish: hint(for: editing))
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -127,6 +127,12 @@ final class FoodScreenshotTests: XCTestCase {
             field.tap()
             Thread.sleep(forTimeInterval: 0.5)
         }
+        // A fresh simulator covers the keyboard with its "slide to type" tip the first time.
+        let keyboardTip = app.buttons["Continue"]
+        if keyboardTip.waitForExistence(timeout: 2), keyboardTip.isHittable {
+            keyboardTip.tap()
+            Thread.sleep(forTimeInterval: 0.5)
+        }
         app.typeText("kurczak ryż brokuł, kawa z mlekiem")
         Thread.sleep(forTimeInterval: 1.5)
         saveScreenshot(named: "06-food-typing", in: self)

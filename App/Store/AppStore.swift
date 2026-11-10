@@ -213,9 +213,15 @@ final class AppStore {
         unreadPersistence = nil
 
         if AppDataCoding.isFromNewerVersion(raw) {
-            data = (try? AppDataCoding.decode(raw)) ?? AppData()
             readOnlyReason = "te dane zapisała nowsza wersja aplikacji. Zainstaluj ją, żeby wprowadzać zmiany"
-            problem = "te dane zapisała nowsza wersja aplikacji. Pokażę je, ale niczego nie zapiszę, żeby nic nie zginęło. Zainstaluj najnowszą wersję"
+            if let newer = try? AppDataCoding.decode(raw) {
+                data = newer
+                problem = "te dane zapisała nowsza wersja aplikacji. Pokażę je, ale niczego nie zapiszę, żeby nic nie zginęło. Zainstaluj najnowszą wersję"
+            } else {
+                // Something deep inside only a newer version knows: nothing can be shown, and
+                // nothing is written, so it all comes back once she installs that version.
+                problem = "te dane zapisała nowsza wersja aplikacji, a ja nie umiem ich jeszcze pokazać. Niczego nie zapiszę, żeby nic nie zginęło. Zainstaluj najnowszą wersję"
+            }
             return
         }
 
