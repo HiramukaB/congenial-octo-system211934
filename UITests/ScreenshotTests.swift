@@ -39,7 +39,8 @@ func seconds(since start: Date) -> String {
 }
 
 /// Launches every tab with fictional demo data and saves a screenshot of it, then the food tab
-/// while a meal is typed, the targets sheet and the screens "ja" opens.
+/// while a meal is typed, the targets sheet, the screens "ja" opens, the welcome steps and the
+/// short guide.
 final class ScreenshotTests: XCTestCase {
     private let tabs = ["today", "calendar", "food", "movement", "me"]
 
@@ -122,20 +123,24 @@ final class ScreenshotTests: XCTestCase {
         let targets = button(labelled: "Twoje cele dzienne", in: app)
         guard targets.waitForExistence(timeout: 10), targets.isHittable else { return }
         targets.tap()
-        _ = app.navigationBars["Twoje cele dzienne"].waitForExistence(timeout: 5)
+        // The sheet has no bar: its title is the serif header at the top.
+        _ = app.staticTexts["Twoje cele dzienne"].waitForExistence(timeout: 5)
         Thread.sleep(forTimeInterval: 1)
         saveScreenshot(named: "07-food-targets", in: self)
     }
 
     /// Best effort, with fictional demo data: the screens "ja" opens – "chwila dla siebie",
-    /// "wnętrze" and "ustawienia" – each with its lower half. Every screen gets its own launch; an
-    /// entry that doesn't show up is skipped, and so are its screenshots. It runs after the tests
-    /// above (name order), on a warm simulator.
+    /// "wnętrze", "ustawienia" and "humor" – each with its lower half, then the short guide that
+    /// "ustawienia" opens again. Every screen gets its own launch; an entry that doesn't show up is
+    /// skipped, and so are its screenshots. It runs after the tests above (name order), on a warm
+    /// simulator.
     @MainActor
     func testMeScreens() {
         captureMeScreen(opening: "chwila dla siebie", named: "08-me-moment")
         captureMeScreen(opening: "wnętrze", named: "09-me-inner")
         captureMeScreen(opening: "ustawienia", named: "10-me-settings")
+        captureMeScreen(opening: "humor", named: "12-humor")
+        captureTutorial(named: "13-tutorial")
     }
 
     @MainActor
@@ -152,18 +157,7 @@ final class ScreenshotTests: XCTestCase {
         saveTiming("\(name): launch \(launched), first frame after \(seconds(since: shown))")
         // Let the layout settle.
         Thread.sleep(forTimeInterval: 2)
-        // An entry reads as its title, then the line about what is inside.
-        let startsWithTitle = NSPredicate(format: "label BEGINSWITH %@", title)
-        var entry = app.buttons.matching(startsWithTitle).firstMatch
-        if !entry.waitForExistence(timeout: 10) {
-            entry = app.descendants(matching: .any).matching(startsWithTitle).firstMatch
-            guard entry.waitForExistence(timeout: 2) else { return }
-        }
-        if !entry.isHittable {
-            app.swipeUp()
-            Thread.sleep(forTimeInterval: 1)
-        }
-        guard entry.isHittable else { return }
+        guard let entry = findEntry(startingWith: title, in: app) else { return }
         let opening = Date()
         entry.tap()
         // The screen it opens has a bar with the way back to "ja".
@@ -178,6 +172,104 @@ final class ScreenshotTests: XCTestCase {
         saveTiming("\(name): swipe \(seconds(since: swipe))")
         Thread.sleep(forTimeInterval: 1)
         saveScreenshot(named: "\(name)-2", in: self)
+    }
+
+    /// The short guide, as "ustawienia" opens it again from the row "samouczek".
+    @MainActor
+    private func captureTutorial(named name: String) {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoData", "-stillBackground", "-startTab", "me"]
+        let start = Date()
+        app.launch()
+        defer { app.terminate() }
+        guard app.wait(for: .runningForeground, timeout: 15) else { return }
+        let launched = seconds(since: start)
+        let shown = Date()
+        guard app.buttons.firstMatch.waitForExistence(timeout: 30) else { return }
+        saveTiming("\(name): launch \(launched), first frame after \(seconds(since: shown))")
+        // Let the layout settle.
+        Thread.sleep(forTimeInterval: 2)
+        guard let settings = findEntry(startingWith: "ustawienia", in: app) else { return }
+        settings.tap()
+        _ = app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5)
+        Thread.sleep(forTimeInterval: 1)
+        guard let row = findEntry(startingWith: "samouczek", in: app) else { return }
+        let opening = Date()
+        row.tap()
+        // The guide covers the screen, with "dalej" at the bottom.
+        guard button(labelled: "dalej", in: app).waitForExistence(timeout: 5) else { return }
+        saveTiming("\(name): open \(seconds(since: opening))")
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertEqual(app.state, .runningForeground, "the app quit on the guide")
+        saveScreenshot(named: name, in: self)
+    }
+
+    /// The welcome as her phone shows it after the update, on fictional demo data: the greeting
+    /// and the first two questions (best effort), then the star action "dalej" through every step
+    /// and every card of the guide to "chodźmy", which must close it. The welcome covers the whole
+    /// app, so one that can't be finished would keep her out of it. It runs after the tests above
+    /// (name order), on a warm simulator.
+    @MainActor
+    func testOnboarding() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoData", "-showOnboarding", "-stillBackground"]
+        let start = Date()
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15), "the app did not start")
+        let launched = seconds(since: start)
+        let shown = Date()
+        let begin = button(labelled: "zaczynamy", in: app)
+        guard begin.waitForExistence(timeout: 30) else {
+            XCTFail("the welcome did not show")
+            return
+        }
+        saveTiming("11-onboarding: launch \(launched), first frame after \(seconds(since: shown))")
+        // Let the layout settle.
+        Thread.sleep(forTimeInterval: 2)
+        saveScreenshot(named: "11-onboarding-1", in: self)
+
+        // The greeting's "zaczynamy", then the first two questions (name, cycle).
+        let next = button(labelled: "dalej", in: app)
+        if begin.isHittable {
+            begin.tap()
+            if next.waitForExistence(timeout: 5) {
+                Thread.sleep(forTimeInterval: 1.5)
+                saveScreenshot(named: "11-onboarding-2", in: self)
+                if next.isHittable {
+                    next.tap()
+                    Thread.sleep(forTimeInterval: 1.5)
+                    saveScreenshot(named: "11-onboarding-3", in: self)
+                }
+            }
+        }
+
+        // "dalej" through the other questions and the five cards of the guide.
+        let finish = button(labelled: "chodźmy", in: app)
+        let stepping = Date()
+        var taps = 0
+        var tries = 0
+        while !finish.exists && tries < 25 {
+            tries += 1
+            guard next.waitForExistence(timeout: 5) else { break }
+            // A step still fading in may not take a tap yet; the next round tries again.
+            if next.isHittable {
+                next.tap()
+                taps += 1
+            }
+            Thread.sleep(forTimeInterval: 0.8)
+        }
+        guard finish.waitForExistence(timeout: 5) else {
+            saveScreenshot(named: "11-onboarding-stuck", in: self)
+            XCTFail("the welcome never reached its end")
+            return
+        }
+        saveTiming("11-onboarding: \(taps) taps to the end, \(seconds(since: stepping))")
+        XCTAssertEqual(app.state, .runningForeground, "the app quit in the welcome")
+        let closing = Date()
+        finish.tap()
+        XCTAssertTrue(waitUntilGone(finish, timeout: 10), "the welcome did not close")
+        saveTiming("11-onboarding: close \(seconds(since: closing))")
     }
 
     @MainActor
@@ -196,6 +288,31 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     private func button(labelled label: String, in app: XCUIApplication) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
+    }
+
+    /// A place in "ja" or a row in "ustawienia", scrolled into reach when it is lower down;
+    /// nil when it doesn't show up.
+    @MainActor
+    private func findEntry(startingWith title: String, in app: XCUIApplication) -> XCUIElement? {
+        // An entry reads as its title, then the line about what is inside.
+        let startsWithTitle = NSPredicate(format: "label BEGINSWITH %@", title)
+        var element = app.buttons.matching(startsWithTitle).firstMatch
+        if !element.waitForExistence(timeout: 10) {
+            element = app.descendants(matching: .any).matching(startsWithTitle).firstMatch
+            guard element.waitForExistence(timeout: 2) else { return nil }
+        }
+        if !element.isHittable {
+            app.swipeUp()
+            Thread.sleep(forTimeInterval: 1)
+        }
+        return element.isHittable ? element : nil
+    }
+
+    /// Waits until the element is gone, e.g. a cover that closed; false when it is still there.
+    @MainActor
+    private func waitUntilGone(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
     }
 }
 

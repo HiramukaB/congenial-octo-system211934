@@ -25,7 +25,7 @@ extension AppData {
 /// her mood is low (1–4) – or, while she hasn't marked it, late in the day (the evening of
 /// `MeditationTime`: from 18:00 until 4 in the morning). On any other day "dziś" stays as it is.
 public enum HumorNudge {
-    /// A mood this low ("niski" and "obniżony") brings a smile to "dziś".
+    /// A mood this low ("ciężki" and "słabszy") brings a smile to "dziś".
     public static let lowMood: ClosedRange<Int> = 1...4
 
     /// Late enough in the day that a mood not marked yet is reason enough.

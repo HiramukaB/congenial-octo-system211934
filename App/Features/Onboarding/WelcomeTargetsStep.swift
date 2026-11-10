@@ -29,10 +29,11 @@ nonisolated enum WelcomeTargetField: Hashable {
 
 /// "Twoje cele na dzień": the daily targets from her numbers, shown simply – the kcal large, the
 /// rest in one line – with how much she moves and her pace to adjust them. Or her own numbers
-/// ("wolę wpisać własne"), which also works without the numbers about her. Every change is saved
-/// at once.
+/// ("wolę wpisać własne"), which also works without the numbers about her. A tile saves at once;
+/// her own numbers are saved when she leaves a field or the step, never while she types.
 struct WelcomeTargetsStep: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var memory: WelcomeMemory
     let onBack: () -> Void
     let onNext: () -> Void
@@ -47,7 +48,7 @@ struct WelcomeTargetsStep: View {
                     title: "Twoje cele na dzień",
                     subtitle: subtitle(hasProfile: profile != nil, isManual: isManual),
                     canSkip: store.targets == nil,
-                    onBack: onBack,
+                    onBack: goBack,
                     onNext: moveOn,
                     onSkip: skip) {
             if isManual || profile == nil {
@@ -56,7 +57,19 @@ struct WelcomeTargetsStep: View {
                 computed(profile: profile, targets: result.targets)
             }
         }
-        .onChange(of: memory.ownTargets) { _, _ in
+        // Saved when she leaves a field or the step, never mid-typing: retyping "100" passes "10"
+        // and "1", which would be saved as her real targets.
+        .onChange(of: focus) { _, _ in
+            saveOwnTargets()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // In the background the app may be ended at any time: save the fields and the file now.
+            if phase == .background {
+                saveOwnTargets()
+                store.saveNow()
+            }
+        }
+        .onDisappear {
             saveOwnTargets()
         }
     }
@@ -70,7 +83,7 @@ struct WelcomeTargetsStep: View {
 
     private func subtitle(hasProfile: Bool, isManual: Bool) -> String {
         if isManual {
-            return "Twoje własne liczby – zapisuję je od razu"
+            return "Twoje własne liczby – zapiszę je, gdy skończysz pisać"
         }
         return hasProfile
             ? "policzyłam je z liczb, które mi podałaś"
@@ -223,7 +236,8 @@ struct WelcomeTargetsStep: View {
             .accessibilityLabel(Text(label))
     }
 
-    /// One line under the fields: what still needs her, or that her numbers are saved.
+    /// One line under the fields: what still needs her, or that her numbers are saved – only once
+    /// they really are, never while she is still typing them.
     @ViewBuilder
     private var ownStatus: some View {
         let draft = memory.ownTargets
@@ -234,13 +248,15 @@ struct WelcomeTargetsStep: View {
                 .fixedSize(horizontal: false, vertical: true)
         } else if let macros = BodyNumbers.ownTargets(kcal: draft.kcal, protein: draft.protein,
                                                       carbs: draft.carbs, fat: draft.fat) {
-            if macros.kcal < TargetCalculator.minimumKcal {
-                Text(polish: "to niewiele jak na cały dzień – zapisałam, ale bądź dla siebie łagodna")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.accent)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                ConfirmationNote(text: "zapisałam Twoje liczby")
+            if store.data.targetsSetting == .manual(macros) {
+                if macros.kcal < TargetCalculator.minimumKcal {
+                    Text(polish: "to niewiele jak na cały dzień – zapisałam, ale bądź dla siebie łagodna")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.accent)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ConfirmationNote(text: "zapisałam Twoje liczby")
+                }
             }
         } else if !draft.isEmpty {
             Text(polish: "zapiszę, gdy wpiszesz wszystkie cztery")
@@ -289,9 +305,13 @@ struct WelcomeTargetsStep: View {
     }
 
     /// Saved once all four can be right; a change only to something that can't be right waits.
+    /// Called when she leaves a field or the step. Nothing is saved once she has gone back to the
+    /// counted targets ("policz je za mnie"): the fields aren't hers to save then.
     private func saveOwnTargets() {
         let draft = memory.ownTargets
-        guard memory.hasLoadedOwnTargets, draft != memory.ownTargetsSaved else { return }
+        guard memory.hasLoadedOwnTargets, draft != memory.ownTargetsSaved,
+              isManualSetting || store.data.nutritionProfile == nil
+        else { return }
         memory.ownTargetsSaved = draft
         guard let macros = BodyNumbers.ownTargets(kcal: draft.kcal, protein: draft.protein,
                                                   carbs: draft.carbs, fat: draft.fat),
@@ -320,12 +340,20 @@ struct WelcomeTargetsStep: View {
             return
         }
         focus = nil
+        saveOwnTargets()
         onNext()
     }
 
     private func skip() {
         focus = nil
+        saveOwnTargets()
         onNext()
+    }
+
+    private func goBack() {
+        focus = nil
+        saveOwnTargets()
+        onBack()
     }
 }
 

@@ -9,8 +9,13 @@ extension AppStore {
     /// finished them yet. Never while her file is unread or read-only, and never with
     /// `-skipOnboarding` or the plain demo (`LaunchArguments`).
     var needsOnboarding: Bool {
+        // `isEditable` isn't observed. Her data becomes editable together with a new `data`, or –
+        // when her file is missing and no copy can be read – with only `problem` set. Both are
+        // read first, so a view asking this is redrawn in either case.
+        _ = problem
+        let isCompleted = data.settings.onboarding.isCompleted
         guard !LaunchArguments.skipsOnboarding, isEditable else { return false }
-        return !data.settings.onboarding.isCompleted
+        return !isCompleted
     }
 
     /// The name she wants to be called by; nil when she left it empty.

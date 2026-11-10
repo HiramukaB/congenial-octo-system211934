@@ -107,7 +107,8 @@ No nested cards (the question card in "chwila dla siebie" is a card in a card �
 | yes/no items | `ToggleTile` in `TileGrid` | `TileGrid(columns: 2) { ToggleTile(title:isOn:action:) }` |
 | one of a few | `ChoiceTiles` | `ChoiceTiles(options:selection:columns:label:onSelect:)` |
 | the primary action | `StarActionButton` | `StarActionButton("dalej", size: .large, isEnabled: true) { … }` – `.large` 56 pt full width; `.regular` 44 pt for actions inside a card |
-| tiny icon action (header +, day switch) | `StarButton` | existing; 44 pt target |
+| tiny icon action (header +) | `StarButton` | existing; 44 pt target |
+| previous / next day or month | `ChevronStepButton` (Features/Shared) | `ChevronStepButton(systemImage: "chevron.left", label: "poprzedni dzień", isEnabled:) { … }` – the same on "dziś", "kalendarz" and "jedzenie" |
 | list rows | `ListRow` + `.swipeToDelete` + `RowDivider` | `ListRow(text, detail:) { trailing }.swipeToDelete(label:onTap:perform:)` |
 | nothing yet | `EmptyState` | `EmptyState(title:message:actionTitle:action:)` |
 | long explanation | `MoreInfo` | `MoreInfo("dlaczego?", text: "…")` |

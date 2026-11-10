@@ -67,7 +67,8 @@ final class AppStore {
     /// mode. Unlike `change`, asking never shows her anything.
     ///
     /// What it reads isn't observed, but it only ever changes together with `data` or `problem`
-    /// (or before the first screen is drawn), so views that read it are redrawn in time.
+    /// (or before the first screen is drawn): a view that reads it also reads both, as
+    /// `needsOnboarding` does, to be redrawn in time.
     var isEditable: Bool {
         unreadPersistence == nil && readOnlyReason == nil
     }

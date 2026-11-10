@@ -53,8 +53,9 @@ struct TeachRequest: Identifiable {
     var id: String { existing?.id ?? name }
 }
 
-/// The title and the day it shows, as one block: "jedzenie", then the day between two stars that
-/// switch days. On an earlier day "wróć do dziś" sits next to the title.
+/// The title and the day it shows, as one block: "jedzenie", then the day between the round
+/// arrows that switch days (the same ones as on "dziś"). On an earlier day "wróć do dziś" sits
+/// next to the title.
 private struct FoodHeader: View {
     let day: LocalDate
     let offset: Int
@@ -74,11 +75,12 @@ private struct FoodHeader: View {
                         .buttonStyle(LinkButtonStyle(font: .footnote.weight(.medium)))
                 }
             }
-            HStack(spacing: 0) {
-                StarButton(label: "poprzedni dzień", action: onPrevious)
+            HStack(spacing: Spacing.tight) {
+                ChevronStepButton(systemImage: "chevron.left", label: "poprzedni dzień", action: onPrevious)
                 dayName
                     .frame(maxWidth: .infinity)
-                StarButton(label: "następny dzień", isEnabled: offset < 0, action: onNext)
+                ChevronStepButton(systemImage: "chevron.right", label: "następny dzień",
+                                  isEnabled: offset < 0, action: onNext)
             }
         }
         .padding(.bottom, Spacing.hairline)

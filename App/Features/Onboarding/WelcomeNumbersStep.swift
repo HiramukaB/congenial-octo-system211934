@@ -10,12 +10,13 @@ nonisolated enum WelcomeNumberField: Hashable {
 /// "kilka liczb o Tobie": birth year, height and today's weight – what her daily targets are
 /// counted from, with the same profile and the same rules as "Twoje cele dzienne" in "jedzenie".
 ///
-/// Each number saves itself once it can be right: the weight at once as today's weigh-in, the
-/// profile once all three are known (keeping her activity, pace and targets). Nothing is written
-/// just because the step was opened, and a weigh-in the welcome added goes again if she empties
-/// the field.
+/// Each number is saved when she leaves its field (or the step), once it can be right: the weight
+/// as today's weigh-in, the profile once all three are known (keeping her activity, pace and
+/// targets). Nothing is written just because the step was opened, nothing while she is still
+/// typing, and a weigh-in the welcome added goes again if she empties the field.
 struct WelcomeNumbersStep: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var memory: WelcomeMemory
     let onBack: () -> Void
     let onNext: () -> Void
@@ -27,7 +28,7 @@ struct WelcomeNumbersStep: View {
                     title: "kilka liczb o Tobie",
                     subtitle: "z nich policzę Twoje cele na każdy dzień",
                     canSkip: Self.isBlank(draft.birthYear) && Self.isBlank(draft.height) && Self.isBlank(draft.weight),
-                    onBack: onBack,
+                    onBack: goBack,
                     onNext: moveOn,
                     onSkip: skip) {
             VStack(alignment: .leading, spacing: Spacing.cardGap) {
@@ -54,7 +55,19 @@ struct WelcomeNumbersStep: View {
             .animation(.smooth(duration: 0.25), value: statusKind(draft).rawValue)
         }
         .onAppear(perform: load)
-        .onChange(of: memory.numbers) { _, _ in
+        // Saved when she leaves a field or the step, never mid-typing: emptying "64,5" passes
+        // "64", which would replace her real weigh-in.
+        .onChange(of: focus) { _, _ in
+            save()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // In the background the app may be ended at any time: save the fields and the file now.
+            if phase == .background {
+                save()
+                store.saveNow()
+            }
+        }
+        .onDisappear {
             save()
         }
     }
@@ -164,12 +177,20 @@ struct WelcomeNumbersStep: View {
             return
         }
         focus = nil
+        save()
         onNext()
     }
 
     private func skip() {
         focus = nil
+        save()
         onNext()
+    }
+
+    private func goBack() {
+        focus = nil
+        save()
+        onBack()
     }
 
     // MARK: - Loading and saving
@@ -195,7 +216,8 @@ struct WelcomeNumbersStep: View {
         }
     }
 
-    /// Saves what changed since the last save, as far as it can be right.
+    /// Saves what changed since the last save, as far as it can be right. Called when she leaves
+    /// a field or the step, and when the app goes to the background.
     private func save() {
         let draft = memory.numbers
         let before = memory.numbersSaved
