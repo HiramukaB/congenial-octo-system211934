@@ -35,7 +35,7 @@ struct TodayView: View {
             }
             TodayIntentionCard(day: date)
             DaySummaryCard(eaten: store.data.eaten(on: date),
-                           targets: store.targets,
+                           targets: store.targetsWithMovement(on: date),
                            glasses: store.data.water(on: date).total,
                            onOpenFood: {
                                foodDayOffset = dayOffset

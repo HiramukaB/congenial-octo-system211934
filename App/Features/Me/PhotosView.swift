@@ -13,6 +13,7 @@ struct PhotosView: View {
     @Environment(AppStore.self) private var store
     @State private var pickedItems: [PhotosPickerItem] = []
     @State private var isAdding = false
+    @State private var isPicking = false
     /// How many of the photos she picked last couldn't be opened.
     @State private var failedCount = 0
     @State private var shownPhoto: ProgressPhoto? = nil
@@ -42,6 +43,8 @@ struct PhotosView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .navigationBarTitleDisplayMode(.inline)
+        // The picker as a modifier: its label closure is nonisolated in the iOS 26 SDK.
+        .photosPicker(isPresented: $isPicking, selection: $pickedItems, maxSelectionCount: 10, matching: .images)
         .onChange(of: pickedItems) { _, items in
             guard !items.isEmpty else { return }
             // Emptied right away, so the picker opens fresh next time.
@@ -59,7 +62,9 @@ struct PhotosView: View {
     private static let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
 
     private var addCard: some View {
-        PhotosPicker(selection: $pickedItems, maxSelectionCount: 10, matching: .images) {
+        Button {
+            isPicking = true
+        } label: {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 12) {

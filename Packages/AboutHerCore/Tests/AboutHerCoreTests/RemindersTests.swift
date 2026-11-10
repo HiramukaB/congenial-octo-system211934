@@ -51,7 +51,7 @@ struct RemindersTests {
             settings[kind].isOn = true
         }
         #expect([settings.water, settings.weighIn, settings.periodSoon, settings.dinner, settings.letter]
-                    .allSatisfy(\.isOn))
+                    .allSatisfy { $0.isOn })
         settings[.dinner].time = ReminderTime(hour: 19, minute: 30)
         #expect(settings.dinner.time == ReminderTime(hour: 19, minute: 30))
         #expect(ReminderTime(hour: 8).text == "8:00")
