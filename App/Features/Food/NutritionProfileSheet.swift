@@ -105,7 +105,7 @@ struct NutritionProfileSheet: View {
             if draft.usesOwnTargets {
                 ownTargetsCard
             }
-            Text(polish: "to szacunek, nie zalecenie medyczne – nie zastępuje rozmowy z lekarzem ani dietetyczką")
+            Text(polish: "to szacunek – nie zastąpi rozmowy z lekarzem ani dietetyczką")
                 .hintText()
         }
         // A change that can't be saved yet keeps the sheet open, so nothing she typed is lost
@@ -149,7 +149,7 @@ struct NutritionProfileSheet: View {
                         FoodNumberRow("waga", text: $draft.weight, placeholder: "np. 64,5", unit: "kg")
                     }
                 }
-                choices("aktywność") {
+                choices("ile się ruszasz w zwykłym tygodniu?") {
                     ChoiceTiles(options: ActivityLevel.allCases,
                                 selection: draft.activity,
                                 columns: 2,
@@ -226,9 +226,10 @@ struct NutritionProfileSheet: View {
     /// A group of tiles with its short name above it.
     private func choices<Tiles: View>(_ title: String, @ViewBuilder tiles: () -> Tiles) -> some View {
         VStack(alignment: .leading, spacing: Spacing.item) {
-            Text(title)
+            Text(polish: title)
                 .font(.subheadline)
                 .foregroundStyle(Palette.text2)
+                .fixedSize(horizontal: false, vertical: true)
             tiles()
         }
     }
@@ -251,13 +252,14 @@ struct NutritionProfileSheet: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// Shorter words than `ActivityLevel.label`, so two tiles fit side by side.
+    /// Short words, the same as in the welcome, so each tile keeps to one line two by two; the
+    /// question above them says "w zwykłym tygodniu".
     private static func activityTitle(_ level: ActivityLevel) -> String {
         switch level {
-        case .sedentary: "bez treningów"
-        case .light: "1–3 treningi w tygodniu"
-        case .moderate: "3–5 treningów w tygodniu"
-        case .high: "6–7 treningów w tygodniu"
+        case .sedentary: "mało ruchu"
+        case .light: "1–3 treningi"
+        case .moderate: "3–5 treningów"
+        case .high: "6–7 treningów"
         }
     }
 

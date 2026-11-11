@@ -97,21 +97,22 @@ struct WelcomeCycleStep: View {
         return VStack(alignment: .leading, spacing: Spacing.group) {
             if let last {
                 Card(style: .highlight) {
-                    VStack(alignment: .leading, spacing: Spacing.tight) {
-                        Text("ostatni okres")
-                            .eyebrow()
-                        Text(PolishDate.dayMonth(last.start))
-                            .displayFont(30, weight: .medium, relativeTo: .title)
-                            .foregroundStyle(Palette.text)
-                        Text(polish: summaryLine(last, expected: expected))
-                            .bodyText()
+                    VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                        SectionHeader("ostatni okres")
+                        VStack(alignment: .leading, spacing: Spacing.hairline) {
+                            Text(PolishDate.dayMonth(last.start))
+                                .displayFont(30, weight: .medium, relativeTo: .title)
+                                .foregroundStyle(Palette.text)
+                            Text(polish: summaryLine(last, expected: expected))
+                                .bodyText()
+                        }
                     }
                 }
                 .accessibilityElement(children: .combine)
             }
-            VStack(alignment: .leading, spacing: Spacing.tight) {
-                Button("zaznacz nowszy okres", action: startNewer)
-                    .buttonStyle(LinkButtonStyle())
+            // A real button, easy to hit, for the one other thing she may want here.
+            VStack(alignment: .leading, spacing: Spacing.item) {
+                StarActionButton("zaznacz nowszy okres", size: .regular, action: startNewer)
                 Text(polish: "pojedyncze dni poprawisz w kalendarzu")
                     .hintText()
             }

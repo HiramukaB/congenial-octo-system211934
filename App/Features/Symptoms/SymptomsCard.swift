@@ -34,8 +34,12 @@ struct SymptomsCard: View {
 
 /// How she felt on one day: the four scales, then her symptoms. On "dziś" the symptoms wait behind
 /// "objawy" (with what she marked named on the row); in the calendar's sheet they are always open.
+///
+/// The scales are compact rows – the name and the word on the left, the track beside them – so all
+/// four fit in a glance and she can set them one after another without scrolling.
 struct DaySymptomsForm: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let day: LocalDate
     /// Whether the symptom tiles show; nil keeps them always open.
     var isFlagsOpen: Binding<Bool>? = nil
@@ -45,9 +49,13 @@ struct DaySymptomsForm: View {
         let isToday = day == store.today
         VStack(alignment: .leading, spacing: Spacing.cardGap) {
             SectionHeader(SymptomsCard.title(on: day, today: store.today))
-            VStack(alignment: .leading, spacing: Spacing.group) {
+            // Compact rows sit closer together; at large text sizes the scales stack and get the
+            // usual room between groups.
+            VStack(alignment: .leading,
+                   spacing: DragScaleLayout.fitsCompactRow(at: dynamicTypeSize) ? Spacing.item : Spacing.group) {
                 ForEach(SymptomScaleKind.allCases, id: \.self) { kind in
-                    DragScale(kind.title, value: marked[keyPath: kind.keyPath], words: kind.words) { value in
+                    DragScale(kind.title, value: marked[keyPath: kind.keyPath], words: kind.words,
+                              layout: .compact) { value in
                         _ = store.setSymptomScale(kind.keyPath, to: value, on: day)
                     }
                 }

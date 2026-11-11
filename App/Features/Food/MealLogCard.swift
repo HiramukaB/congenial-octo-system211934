@@ -2,7 +2,7 @@ import SwiftUI
 import AboutHerCore
 
 /// "co zjadłaś": tap "dopisz posiłek", type in plain Polish, and it saves itself – no confirm button.
-/// Each meal is one compact row – her words and its kcal. A tap on a meal opens it in the same
+/// Each meal is one compact line – her words and its kcal. A tap on a meal opens it in the same
 /// field, in its place, with what I counted above the text; a swipe left deletes it.
 struct MealLogCard: View {
     @Environment(AppStore.self) private var store
@@ -42,10 +42,11 @@ struct MealLogCard: View {
         let rows = rowsAround(entries)
         Card {
             VStack(alignment: .leading, spacing: Spacing.cardGap) {
-                SectionHeader("co zjadłaś", subtitle: day == store.today ? nil : PolishDate.long(day)) {
-                    if editing == nil {
-                        StarActionButton("dopisz posiłek", size: .regular, action: startNewMeal)
-                    }
+                SectionHeader("co zjadłaś", subtitle: day == store.today ? nil : PolishDate.long(day))
+                // On its own line under the heading, where the field for a new meal opens, so the
+                // label always fits on one line. Without meals the empty state offers it instead.
+                if editing == nil && !entries.isEmpty {
+                    StarActionButton("dopisz posiłek", size: .regular, action: startNewMeal)
                 }
                 // The field is one and the same view wherever it opens – above the meals for a new
                 // one, in place of a meal she tapped – so the keyboard stays up from meal to meal.
@@ -106,16 +107,13 @@ struct MealLogCard: View {
 
     // MARK: - Parts
 
-    /// A tap anywhere on it opens the field too, as "dopisz posiłek" does.
+    /// No meals yet: a warm line and "dopisz posiłek" under it.
     private var emptyState: some View {
-        Button(action: startNewMeal) {
-            EmptyState(title: day == store.today
-                       ? "tu pojawi się to, co dziś zjesz"
-                       : "z tego dnia nie mam zapisanych posiłków")
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("dopisz posiłek")
+        EmptyState(title: day == store.today
+                   ? "tu pojawi się to, co dziś zjesz"
+                   : "z tego dnia nie mam zapisanych posiłków",
+                   actionTitle: "dopisz posiłek",
+                   action: startNewMeal)
     }
 
     private func row(_ entry: MealEntry) -> some View {
@@ -148,15 +146,17 @@ struct MealLogCard: View {
         .fieldBox()
     }
 
-    /// Live preview of what I understand, while she types: each product, then the whole meal.
+    /// Live preview of what I understand, while she types: each product, then the whole meal, and a
+    /// hairline that sets her own words apart from it.
     @ViewBuilder private var preview: some View {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count > Self.previewLimit {
             Text(polish: "tak długi tekst policzę dopiero po zapisaniu")
                 .hintText()
+            FieldDivider()
         } else if !trimmed.isEmpty {
             let parsed = store.mealParser.parse(trimmed)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Spacing.hairline) {
                 ForEach(Array(parsed.items.enumerated()), id: \.offset) { _, item in
                     Text(FoodFormat.itemLine(item))
                         .font(.footnote)
@@ -166,7 +166,7 @@ struct MealLogCard: View {
                     Text(verbatim: "razem: \(FoodFormat.macrosLine(parsed.totals))")
                         .font(.footnote.weight(.medium).monospacedDigit())
                         .foregroundStyle(Palette.text)
-                        .padding(.top, 2)
+                        .padding(.top, Spacing.hairline)
                 }
                 if !parsed.unknown.isEmpty {
                     Text("nie znam jeszcze: \(parsed.unknown.joined(separator: ", "))")
@@ -180,6 +180,7 @@ struct MealLogCard: View {
                 }
             }
             .accessibilityElement(children: .combine)
+            FieldDivider()
         }
     }
 
@@ -315,9 +316,11 @@ struct MealLogCard: View {
     }
 }
 
-/// One logged meal as a compact row: her words and the kcal I counted. Under it – only when they
-/// are there – the products I don't know yet and her own products, each a link.
+/// One logged meal as a compact row: her words on one line and the kcal I counted; the whole text
+/// and what I counted open on a tap. Under it – only when they are there – the products I don't
+/// know yet and her own products, each a link.
 struct MealRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let entry: MealEntry
     /// Her own products in this meal, which she can open to correct.
     let ownFoods: [FoodItem]
@@ -332,12 +335,16 @@ struct MealRow: View {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.item) {
                 Text(entry.text)
                     .rowTitle()
-                    .fixedSize(horizontal: false, vertical: true)
+                    // One line, so the day reads at a glance; at the largest text sizes a few,
+                    // so her words stay readable.
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if !entry.items.isEmpty {
                     Text(verbatim: "\(FoodFormat.whole(entry.totals.kcal)) kcal")
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(Palette.text2)
+                        .fixedSize()
                 }
             }
             .accessibilityElement(children: .combine)
@@ -379,5 +386,16 @@ struct MealRow: View {
     private static func unique(_ names: [String]) -> [String] {
         var seen = Set<String>()
         return names.filter { seen.insert($0).inserted }
+    }
+}
+
+/// A hairline inside the open field, between what I counted and her words. `RowDivider` would
+/// vanish on the field's warm background, so this one takes a touch of the accent.
+private struct FieldDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Palette.accent.opacity(0.18))
+            .frame(height: 1)
+            .accessibilityHidden(true)
     }
 }

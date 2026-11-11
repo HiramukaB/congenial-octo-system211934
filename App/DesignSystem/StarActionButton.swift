@@ -5,7 +5,8 @@ import SwiftUI
 /// - `.large` – the one primary action of a screen or a step ("zaczynamy", "dalej"): 56 pt tall,
 ///   full width, a filled champagne capsule.
 /// - `.regular` – a secondary action inside a card ("dopisz posiłek"): 44 pt tall, as wide as its
-///   label, a quiet capsule with the star in the accent.
+///   label, a quiet capsule with the star in the accent. Next to other views in a row it is measured
+///   first, so its label stays on one line; it wraps only when a whole line can't hold it.
 ///
 /// A light haptic on every tap. For a bare icon-sized star (no label) keep `StarButton`.
 struct StarActionButton: View {
@@ -43,6 +44,7 @@ struct StarActionButton: View {
                     .foregroundStyle(isLarge ? Palette.onAccent : Palette.text)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, isLarge ? Spacing.card : Spacing.cardGap)
             .padding(.vertical, Spacing.tight)
@@ -61,6 +63,8 @@ struct StarActionButton: View {
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.4)
         .sensoryFeedback(.impact(weight: .light), trigger: taps)
+        // A pill next to a title or a note gets its natural width first: one line, not two.
+        .layoutPriority(isLarge ? 0 : 1)
     }
 }
 

@@ -86,23 +86,22 @@ struct HumorFavoriteButton: View {
     }
 }
 
-/// One joke or quote in her collection, as its own card: her words, what it is and who said it,
-/// and the favourite star in the corner. The screen adds "tap to correct, swipe left to delete".
-struct HumorItemCard: View {
+/// One joke or quote in her collection, as a row of its card: her words, what it is and who said
+/// it, and the favourite star beside the first line. The screen adds "tap to correct, swipe left
+/// to delete".
+struct HumorRow: View {
     let item: HumorItem
     let onToggleFavorite: () -> Void
 
     var body: some View {
         let detail = HumorFormat.detail(item)
-        Card {
-            HStack(alignment: .top, spacing: Spacing.tight) {
-                HumorQuoteText(item: item, detail: detail)
-                HumorFavoriteButton(isOn: item.isFavorite, action: onToggleFavorite)
-                    // The star sits beside the first line; its 44 pt reach into the card's margin.
-                    .padding(.top, -12)
-                    .padding(.trailing, -12)
-            }
+        HStack(alignment: .top, spacing: Spacing.tight) {
+            HumorQuoteText(item: item, detail: detail)
+            HumorFavoriteButton(isOn: item.isFavorite, action: onToggleFavorite)
+                // Level with the first line; the rest of its 44 pt reaches into the row's margin.
+                .padding(.top, -10)
         }
+        .padding(.vertical, Spacing.item)
         // One element for VoiceOver; the star is one of its actions.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(HumorFormat.spoken(item, detail: detail)))

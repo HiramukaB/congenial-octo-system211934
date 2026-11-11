@@ -64,12 +64,18 @@ final class ScreenshotTests: XCTestCase {
             XCTAssertEqual(app.state, .runningForeground, "the app quit on the \(tab) tab")
             saveScreenshot(named: String(format: "%02d-%@", index + 1, tab), in: self)
             if tab == "food" || tab == "today" || tab == "movement" {
-                // The lower half of the longer screens.
+                // The lower half of the longer screens. On "dziś" the arrows next to the date must
+                // move up with the page: proof that a swipe really scrolls it.
+                let marker = tab == "today" ? button(labelled: "poprzedni dzień", in: app) : nil
+                let markerTop = marker.flatMap { top(of: $0, on: tab) }
                 let swipe = Date()
                 app.swipeUp()
                 saveTiming("\(tab): swipe \(seconds(since: swipe))")
                 Thread.sleep(forTimeInterval: 1)
                 saveScreenshot(named: String(format: "%02d-%@-2", index + 1, tab), in: self)
+                if let marker, let markerTop {
+                    checkScrolled(marker, from: markerTop, on: tab)
+                }
             }
             app.terminate()
         }
@@ -139,12 +145,15 @@ final class ScreenshotTests: XCTestCase {
         captureMeScreen(opening: "chwila dla siebie", named: "08-me-moment")
         captureMeScreen(opening: "wnętrze", named: "09-me-inner")
         captureMeScreen(opening: "ustawienia", named: "10-me-settings")
-        captureMeScreen(opening: "humor", named: "12-humor")
+        // The draw button at the top of "humor" must move up with the page when she swipes.
+        captureMeScreen(opening: "humor", named: "12-humor", scrollMarker: "losuj coś na poprawę humoru")
         captureTutorial(named: "13-tutorial")
     }
 
+    /// `scrollMarker`: the label of a button near the top of the screen. When given, the swipe up
+    /// must move it up (or off the screen), or the test fails – the page has to really scroll.
     @MainActor
-    private func captureMeScreen(opening title: String, named name: String) {
+    private func captureMeScreen(opening title: String, named name: String, scrollMarker: String? = nil) {
         let app = XCUIApplication()
         app.launchArguments = ["-demoData", "-stillBackground", "-startTab", "me"]
         let start = Date()
@@ -166,12 +175,41 @@ final class ScreenshotTests: XCTestCase {
         Thread.sleep(forTimeInterval: 1.5)
         XCTAssertEqual(app.state, .runningForeground, "the app quit on \(title)")
         saveScreenshot(named: name, in: self)
+        let marker = scrollMarker.map { button(labelled: $0, in: app) }
+        let markerTop = marker.flatMap { top(of: $0, on: name) }
         // The lower half of the screen.
         let swipe = Date()
         app.swipeUp()
         saveTiming("\(name): swipe \(seconds(since: swipe))")
         Thread.sleep(forTimeInterval: 1)
         saveScreenshot(named: "\(name)-2", in: self)
+        if let marker, let markerTop {
+            checkScrolled(marker, from: markerTop, on: name)
+        }
+    }
+
+    /// Where `marker` starts before a swipe up; a failure (and nil) when it isn't on the screen.
+    @MainActor
+    private func top(of marker: XCUIElement, on screen: String) -> CGFloat? {
+        guard marker.waitForExistence(timeout: 5) else {
+            XCTFail("\(screen): the element near the top is missing, so the scrolling can't be checked")
+            return nil
+        }
+        return marker.frame.minY
+    }
+
+    /// After a swipe up the page must have moved: `marker`, which was at `top`, is now at least
+    /// 40 pt higher, or has left the screen with the page. Writes how far it went to timings.txt.
+    @MainActor
+    private func checkScrolled(_ marker: XCUIElement, from top: CGFloat, on screen: String) {
+        guard marker.exists else {
+            saveTiming("\(screen): scrolled the top element off the screen")
+            return
+        }
+        let moved = top - marker.frame.minY
+        let points = moved.isFinite ? String(format: "%.0f", Double(moved)) : "?"
+        saveTiming("\(screen): scrolled \(points) pt")
+        XCTAssertGreaterThan(moved, 40, "\(screen): a swipe up did not scroll the page (it moved \(points) pt)")
     }
 
     /// The short guide, as "ustawienia" opens it again from the row "samouczek".

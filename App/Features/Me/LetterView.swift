@@ -61,7 +61,7 @@ struct LetterView: View {
     /// Letters she can read now – the reason to come here, so they stand out.
     private func openCard(_ letters: [Letter], today: LocalDate) -> some View {
         Card(style: .highlight) {
-            VStack(alignment: .leading, spacing: Spacing.item) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 SectionHeader("otwarte")
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(letters) { letter in
@@ -106,7 +106,7 @@ struct LetterView: View {
 
     private func sealedCard(_ letters: [Letter], today: LocalDate) -> some View {
         Card {
-            VStack(alignment: .leading, spacing: Spacing.item) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 SectionHeader("zapieczętowane")
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(letters) { letter in
@@ -212,7 +212,7 @@ private struct LetterWritingSheet: View {
                 VStack(alignment: .leading, spacing: Spacing.tight) {
                     TextField("list",
                               text: $text,
-                              prompt: Text("napisz coś do siebie. Przeczytasz to za jakiś czas – i pewnie będziesz już gdzie indziej")
+                              prompt: Text("napisz coś do siebie – przeczytasz to, gdy będziesz już gdzie indziej")
                                   .foregroundStyle(Palette.muted),
                               axis: .vertical)
                         .font(.body)

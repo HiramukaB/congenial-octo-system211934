@@ -6,8 +6,9 @@ import AboutHerCore
 ///
 /// - "losuj coś na poprawę humoru" shows one at random – her favourites more often, never the
 ///   same one twice in a row (`AppData.randomHumor`).
-/// - "dodaj" opens a new one in place; it saves itself when the keyboard goes.
-/// - Each one is a card: a tap corrects it, a swipe to the left deletes it, the star marks a
+/// - "Twoja kolekcja" is one calm card: "dodaj" opens a new one in place at its top; it saves
+///   itself when the keyboard goes.
+/// - Each one is a row: a tap corrects it, a swipe to the left deletes it, the star marks a
 ///   favourite.
 struct HumorView: View {
     @Environment(AppStore.self) private var store
@@ -28,7 +29,7 @@ struct HumorView: View {
 
     var body: some View {
         let items = store.data.humorNewestFirst
-        // A new one saved in the background while she still writes shows only in its own card.
+        // A new one saved in the background while she still writes shows only in its own editor.
         let listed = items.filter { $0.id != newID }
         let shown = showsAll ? listed : Array(listed.prefix(Self.firstCount))
         Screen {
@@ -46,51 +47,58 @@ struct HumorView: View {
                                   onDraw: draw,
                                   onToggleFavorite: toggleFavorite)
                 }
-                collectionHeader
-                if let newID {
-                    HumorEditorCard(itemID: newID, original: nil) { saved in
-                        closeNew(newID, saved: saved)
+                collectionCard(shown: shown, total: listed.count)
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// "Twoja kolekcja": the way to add one, the new one being written, then hers, newest first.
+    private func collectionCard(shown: [HumorItem], total: Int) -> some View {
+        Card {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("Twoja kolekcja") {
+                    // Resting while a new one is already open below.
+                    StarActionButton("dodaj", size: .regular, isEnabled: newID == nil, action: startAdding)
+                        .accessibilityLabel(Text("dodaj żart albo cytat"))
+                }
+                if isConfirming {
+                    ConfirmationNote(text: "zapisałam")
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    if let newID {
+                        HumorEditor(itemID: newID, original: nil) { saved in
+                            closeNew(newID, saved: saved)
+                        }
+                        .transition(.opacity)
+                        if !shown.isEmpty {
+                            RowDivider()
+                        }
                     }
-                    .transition(.opacity)
+                    ForEach(shown) { item in
+                        if item.id != shown.first?.id {
+                            RowDivider()
+                        }
+                        row(item)
+                    }
                 }
-                ForEach(shown) { item in
-                    row(item)
-                }
-                if listed.count > shown.count {
-                    Button("pokaż wszystkie (\(listed.count))") {
-                        showsAll = true
+                if total > shown.count {
+                    Button("pokaż wszystkie (\(total))") {
+                        withAnimation(.smooth) {
+                            showsAll = true
+                        }
                     }
                     .buttonStyle(LinkButtonStyle())
                 }
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.impact(weight: .light), trigger: saves)
-    }
-
-    /// "Twoja kolekcja" and the way to add to it.
-    private var collectionHeader: some View {
-        VStack(alignment: .leading, spacing: Spacing.tight) {
-            HStack(alignment: .center, spacing: Spacing.item) {
-                Text("Twoja kolekcja")
-                    .sectionTitle()
-                    .accessibilityAddTraits(.isHeader)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                // Resting while a new one is already open below.
-                StarActionButton("dodaj", size: .regular, isEnabled: newID == nil, action: startAdding)
-                    .accessibilityLabel(Text("dodaj żart albo cytat"))
-            }
-            if isConfirming {
-                ConfirmationNote(text: "zapisałam")
-            }
-        }
-        .padding(.top, Spacing.tight)
     }
 
     @ViewBuilder
     private func row(_ item: HumorItem) -> some View {
         if editingID == item.id {
-            HumorEditorCard(itemID: item.id, original: item) { saved in
+            HumorEditor(itemID: item.id, original: item) { saved in
                 // Another one may already be open in its place.
                 if editingID == item.id {
                     withAnimation(.smooth) {
@@ -102,7 +110,7 @@ struct HumorView: View {
                 }
             }
         } else {
-            HumorItemCard(item: item) {
+            HumorRow(item: item) {
                 toggleFavorite(item.id)
             }
             .swipeToDelete(label: "usuń", onTap: { startEditing(item.id) }) {
@@ -181,7 +189,7 @@ private struct HumorDrawCard: View {
 
     var body: some View {
         Card(style: .highlight) {
-            VStack(alignment: .leading, spacing: Spacing.group) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 if let item {
                     HStack(alignment: .top, spacing: Spacing.tight) {
                         HumorQuoteText(item: item, size: 22, detail: HumorFormat.attribution(item))
@@ -189,13 +197,14 @@ private struct HumorDrawCard: View {
                         HumorFavoriteButton(isOn: item.isFavorite) {
                             onToggleFavorite(item.id)
                         }
-                        .padding(.top, -12)
+                        // Level with the first line; its 44 pt reach into the card's margin.
+                        .padding(.top, -10)
                         .padding(.trailing, -12)
                     }
                     .id(item.id)
                     .transition(.opacity)
                 } else {
-                    VStack(spacing: Spacing.item) {
+                    VStack(spacing: Spacing.tight) {
                         StarCluster()
                         Text(polish: "potrzebujesz uśmiechu?")
                             .displayFont(20, italic: true, relativeTo: .title3)
@@ -206,7 +215,7 @@ private struct HumorDrawCard: View {
                     .frame(maxWidth: .infinity)
                     .transition(.opacity)
                 }
-                StarActionButton("losuj coś na poprawę humoru", action: onDraw)
+                StarActionButton(item == nil ? "losuj coś na poprawę humoru" : "losuj coś innego", action: onDraw)
             }
         }
     }

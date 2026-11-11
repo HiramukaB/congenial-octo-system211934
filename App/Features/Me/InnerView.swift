@@ -87,7 +87,7 @@ private struct InnerManifestCard: View {
 
     var body: some View {
         Card(style: .highlight) {
-            VStack(alignment: .leading, spacing: Spacing.item) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 SectionHeader("kim się stajesz")
                 InnerTextField(key: "manifest",
                                text: store.data.manifest,
@@ -117,20 +117,23 @@ private struct InnerReflectionCards: View {
         let shownPast = showsAll ? past : Array(past.prefix(Self.recentCount))
         VStack(alignment: .leading, spacing: Spacing.cardGap) {
             Card {
-                VStack(alignment: .leading, spacing: Spacing.item) {
+                VStack(alignment: .leading, spacing: Spacing.cardGap) {
                     SectionHeader("refleksja tygodnia", subtitle: "co tydzień nowe pytanie")
-                    Text(polish: question(forWeekOf: week))
-                        .displayFont(19, italic: true, relativeTo: .body)
-                        .foregroundStyle(Palette.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    answerField(week: week,
-                                answer: store.data.reflection(forWeekOf: week)?.answer ?? "",
-                                emptyLine: "odpowiedz – kilka słów wystarczy")
+                    // The question and her answer, as one group.
+                    VStack(alignment: .leading, spacing: Spacing.item) {
+                        Text(polish: question(forWeekOf: week))
+                            .displayFont(19, italic: true, relativeTo: .body)
+                            .foregroundStyle(Palette.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        answerField(week: week,
+                                    answer: store.data.reflection(forWeekOf: week)?.answer ?? "",
+                                    emptyLine: "odpowiedz – kilka słów wystarczy")
+                    }
                 }
             }
             if !past.isEmpty {
                 Card(style: .quiet) {
-                    VStack(alignment: .leading, spacing: Spacing.item) {
+                    VStack(alignment: .leading, spacing: Spacing.cardGap) {
                         SectionHeader("poprzednie tygodnie")
                         VStack(alignment: .leading, spacing: Spacing.item) {
                             ForEach(shownPast) { entry in

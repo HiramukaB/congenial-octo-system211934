@@ -21,14 +21,14 @@ struct TodayView: View {
         let status = engine.status(on: today)
 
         Screen(tint: info?.phase.tint) {
-            VStack(alignment: .leading, spacing: Spacing.item) {
+            // The greeting, the day and her sentence for it: one block, then the cards.
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 TodayGreetingHeader(date: date,
                                     today: today,
                                     name: store.preferredName,
                                     onPrevious: { dayOffset -= 1 },
                                     onNext: { dayOffset = min(0, dayOffset + 1) },
                                     onToday: { dayOffset = 0 })
-                // Her sentence for the day, right under the greeting.
                 TodayIntentionCard(day: date, style: .inline)
             }
             .padding(.bottom, Spacing.tight)
@@ -73,8 +73,8 @@ struct TodayView: View {
     }
 }
 
-/// The top of "dziś": a greeting with her name – or, on an earlier day, how long ago it was – the
-/// date with the steps to the day before and after, and the way back to today.
+/// The top of "dziś": a greeting with her name – or, on an earlier day, how long ago it was, with
+/// the way back to today beside it – and the date with the steps to the day before and after.
 private struct TodayGreetingHeader: View {
     let date: LocalDate
     let today: LocalDate
@@ -89,23 +89,30 @@ private struct TodayGreetingHeader: View {
         let isToday = date == today
         let _ = scenePhase
         VStack(alignment: .leading, spacing: Spacing.hairline) {
-            Text(title(isToday: isToday))
-                .screenTitle()
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.item) {
+                Text(title(isToday: isToday))
+                    .screenTitle()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                if !isToday {
+                    Spacer(minLength: 0)
+                    Button("wróć do dziś", action: onToday)
+                        .buttonStyle(LinkButtonStyle(font: .footnote.weight(.medium)))
+                }
+            }
             HStack(alignment: .center, spacing: Spacing.tight) {
                 Text(dateLine)
                     .font(.subheadline)
                     .foregroundStyle(Palette.text2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: Spacing.tight)
-                ChevronStepButton(systemImage: "chevron.left", label: "poprzedni dzień", action: onPrevious)
-                ChevronStepButton(systemImage: "chevron.right", label: "następny dzień",
-                                  isEnabled: !isToday, action: onNext)
-            }
-            if !isToday {
-                Button("wróć do dziś", action: onToday)
-                    .buttonStyle(LinkButtonStyle())
+                HStack(spacing: Spacing.tight) {
+                    ChevronStepButton(systemImage: "chevron.left", label: "poprzedni dzień", action: onPrevious)
+                    ChevronStepButton(systemImage: "chevron.right", label: "następny dzień",
+                                      isEnabled: !isToday, action: onNext)
+                }
+                // The round 44 pt arrows keep their reach, but the date stays close to the greeting.
+                .padding(.vertical, -6)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

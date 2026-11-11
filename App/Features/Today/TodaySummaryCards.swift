@@ -16,8 +16,8 @@ struct DaySummaryCard: View {
             Card {
                 HStack(alignment: .center, spacing: Spacing.item) {
                     VStack(alignment: .leading, spacing: Spacing.tight) {
-                        line("jedzenie", value: kcalText(joinedBy: " / "))
-                        line("woda", value: waterText(joinedBy: " / "))
+                        line("jedzenie", value: kcalText)
+                        line("woda", value: waterText)
                     }
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
@@ -28,8 +28,7 @@ struct DaySummaryCard: View {
             .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
         .buttonStyle(TilePressStyle())
-        // VoiceOver hears "1075 z 1748 kcal" instead of a slash.
-        .accessibilityLabel(Text(verbatim: "jedzenie: \(kcalText(joinedBy: " z ")), woda: \(waterText(joinedBy: " z "))"))
+        .accessibilityLabel(Text(verbatim: "jedzenie: \(kcalText), woda: \(waterText)"))
         .accessibilityHint(Text("otwiera jedzenie"))
     }
 
@@ -45,22 +44,23 @@ struct DaySummaryCard: View {
         }
     }
 
-    /// "1075 / 1748 kcal", "1075 kcal" without targets, "jeszcze nic" on an empty today.
-    private func kcalText(joinedBy separator: String) -> String {
+    /// "1075 z 1748 kcal", as "jedzenie" writes it; "1075 kcal" without targets, "jeszcze nic" on
+    /// an empty today.
+    private var kcalText: String {
         let eatenKcal = Self.whole(eaten.kcal)
         if isToday && eatenKcal == 0 {
             return "jeszcze nic"
         }
         guard let targets else { return "\(eatenKcal) kcal" }
-        return "\(eatenKcal)\(separator)\(Self.whole(targets.kcal)) kcal"
+        return "\(eatenKcal) z \(Self.whole(targets.kcal)) kcal"
     }
 
-    /// "4 / 8 szklanek", "jeszcze nic" on an empty today.
-    private func waterText(joinedBy separator: String) -> String {
+    /// "4 z 8 szklanek", "jeszcze nic" on an empty today.
+    private var waterText: String {
         if isToday && glasses == 0 {
             return "jeszcze nic"
         }
-        return "\(glasses)\(separator)\(WaterDay.goalGlasses) szklanek"
+        return "\(glasses) z \(WaterDay.goalGlasses) szklanek"
     }
 
     /// A whole number that never traps, whatever the value.
@@ -78,7 +78,7 @@ struct PhaseGuideCard: View {
 
     var body: some View {
         Card(style: .quiet) {
-            VStack(alignment: .leading, spacing: Spacing.item) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 HStack(alignment: .center, spacing: Spacing.tight) {
                     OrganicStar()
                         .fill(phase.tint)
@@ -88,19 +88,21 @@ struct PhaseGuideCard: View {
                         .sectionTitle()
                         .accessibilityAddTraits(.isHeader)
                 }
-                Text(polish: phase.energyHint)
-                    .bodyText()
-                if isOpen {
-                    VStack(alignment: .leading, spacing: Spacing.item) {
-                        GuideRow(symbol: "fork.knife", title: "jedzenie", text: phase.foodHint)
-                        GuideRow(symbol: "figure.yoga", title: "ruch", text: phase.movementHint)
-                        GuideRow(symbol: "calendar", title: "plan dnia", text: phase.planningHint)
-                        Text(polish: "to wskazówki, nie zasady. Jeśli dziś czujesz inaczej, słuchaj siebie")
-                            .hintText()
+                VStack(alignment: .leading, spacing: Spacing.item) {
+                    Text(polish: phase.energyHint)
+                        .bodyText()
+                    if isOpen {
+                        VStack(alignment: .leading, spacing: Spacing.item) {
+                            GuideRow(symbol: "fork.knife", title: "jedzenie", text: phase.foodHint)
+                            GuideRow(symbol: "figure.yoga", title: "ruch", text: phase.movementHint)
+                            GuideRow(symbol: "calendar", title: "plan dnia", text: phase.planningHint)
+                            Text(polish: "to wskazówki, nie zasady. Jeśli dziś czujesz inaczej, słuchaj siebie")
+                                .hintText()
+                        }
+                        .transition(.opacity)
                     }
-                    .transition(.opacity)
+                    TodayDetailsLink(isOpen: $isOpen, closedLabel: "jedzenie, ruch i plan dnia")
                 }
-                TodayDetailsLink(isOpen: $isOpen, closedLabel: "jedzenie, ruch i plan dnia")
             }
         }
     }

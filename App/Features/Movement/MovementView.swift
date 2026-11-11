@@ -90,7 +90,7 @@ struct MovementVideoTile: View {
                         .accessibilityHidden(true)
                 }
                 .padding(.horizontal, Spacing.item)
-                .padding(.vertical, Spacing.tight + 2)
+                .padding(.vertical, Spacing.tight)
                 .frame(maxWidth: .infinity, minHeight: TapSize.large, alignment: .leading)
                 .background(Color.white.opacity(0.04), in: shape)
                 .overlay {

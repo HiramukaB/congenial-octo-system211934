@@ -1,21 +1,21 @@
 import SwiftUI
 import AboutHerCore
 
-/// A joke or a quote being written or corrected, in place: what it is ("żart", "cytat", "inne"),
-/// her words and, if she wants, who said it. It saves itself – when the keyboard goes, when she
-/// leaves the screen and when the app goes to the background – so there is no save button. The
-/// return key goes from her words to the author, and from there it closes the card.
-struct HumorEditorCard: View {
+/// A joke or a quote being written or corrected, in place in her collection's card: what it is
+/// ("żart", "cytat", "inne"), her words and, if she wants, who said it. It saves itself – when the
+/// keyboard goes, when she leaves the screen and when the app goes to the background – so there is
+/// no save button. The return key goes from her words to the author, and from there it closes.
+struct HumorEditor: View {
     @Environment(AppStore.self) private var store
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// The id it is saved under. A new one's is made when the card opens, so every save (in the
+    /// The id it is saved under. A new one's is made when the editor opens, so every save (in the
     /// background, then on closing) lands on the same item.
     let itemID: UUID
-    /// A new one, not yet in her collection when the card opened.
+    /// A new one, not yet in her collection when the editor opened.
     let isNew: Bool
-    /// Called once, when the card closes: `true` when something was saved.
+    /// Called once, when the editor closes: `true` when something was saved.
     let onClose: (Bool) -> Void
 
     @State private var text: String
@@ -35,39 +35,38 @@ struct HumorEditorCard: View {
     }
 
     var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: Spacing.item) {
-                ChoiceTiles(options: HumorItem.Kind.allCases,
-                            selection: kind,
-                            columns: dynamicTypeSize.isAccessibilitySize ? 1 : 3,
-                            label: { $0.label },
-                            onSelect: { kind = $0 })
-                TextField("wpisz albo wklej coś zabawnego", text: $text, axis: .vertical)
-                    .font(.body)
-                    .foregroundStyle(Palette.text)
-                    .lineLimit(2...10)
-                    .focused($focus, equals: .text)
-                    .submitLabel(.next)
-                    .onSubmit {
-                        focus = .source
-                    }
-                    .onAppear {
-                        focus = .text
-                    }
-                    .fieldBox()
-                TextField("autor albo źródło – jeśli chcesz", text: $source)
-                    .font(.body)
-                    .foregroundStyle(Palette.text)
-                    .focused($focus, equals: .source)
-                    .submitLabel(.done)
-                    .onSubmit {
-                        focus = nil
-                    }
-                    .fieldBox()
-                Text(polish: hint)
-                    .hintText()
-            }
+        VStack(alignment: .leading, spacing: Spacing.item) {
+            ChoiceTiles(options: HumorItem.Kind.allCases,
+                        selection: kind,
+                        columns: dynamicTypeSize.isAccessibilitySize ? 1 : 3,
+                        label: { $0.label },
+                        onSelect: { kind = $0 })
+            TextField("wpisz albo wklej coś zabawnego", text: $text, axis: .vertical)
+                .font(.body)
+                .foregroundStyle(Palette.text)
+                .lineLimit(2...10)
+                .focused($focus, equals: .text)
+                .submitLabel(.next)
+                .onSubmit {
+                    focus = .source
+                }
+                .onAppear {
+                    focus = .text
+                }
+                .fieldBox()
+            TextField("autor albo źródło – jeśli chcesz", text: $source)
+                .font(.body)
+                .foregroundStyle(Palette.text)
+                .focused($focus, equals: .source)
+                .submitLabel(.done)
+                .onSubmit {
+                    focus = nil
+                }
+                .fieldBox()
+            Text(polish: hint)
+                .hintText()
         }
+        .padding(.vertical, Spacing.item)
         .onChange(of: text) { oldValue, newValue in
             // The return key in her words goes on to the author; a pasted text keeps its lines.
             if let typed = Self.textOnReturnKey(old: oldValue, new: newValue) {
@@ -111,8 +110,8 @@ struct HumorEditorCard: View {
         }
     }
 
-    /// Saves and closes the card, once. While her data can't be changed (the store tells her why),
-    /// her words stay in the card.
+    /// Saves and closes the editor, once. While her data can't be changed (the store tells her why),
+    /// her words stay in the fields.
     private func finish() {
         guard !isClosed else { return }
         switch save() {

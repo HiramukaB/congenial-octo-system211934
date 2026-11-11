@@ -242,7 +242,8 @@ private struct LockCoverView: View {
                     session.unlock()
                 }
                 .accessibilityHint(Text("poproszę o Face ID albo kod telefonu"))
-                .padding(.horizontal, Spacing.section)
+                // The same width as the large buttons everywhere else in the app.
+                .padding(.horizontal, Spacing.card)
                 .padding(.bottom, Spacing.section)
                 .transition(.opacity)
             }

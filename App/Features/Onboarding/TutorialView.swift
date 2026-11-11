@@ -122,18 +122,19 @@ nonisolated enum TutorialPage: Int, CaseIterable {
         }
     }
 
+    /// One short line – the example below shows the rest.
     var text: String {
         switch self {
         case .saving:
-            "dotknij, żeby coś dopisać albo poprawić. Nie szukaj przycisku „zapisz” – zapisuję, gdy tylko skończysz"
+            "bez przycisku „zapisz” – zapisuję, gdy tylko skończysz"
         case .swipe:
-            "pod spodem czeka kosz – dotknij go. Tutaj możesz spróbować, nic nie zginie"
+            "pod spodem czeka kosz. Spróbuj – tu nic nie zginie"
         case .scale:
-            "tak ustawiasz energię, nastrój czy sen. Możesz też po prostu dotknąć skali"
+            "tak ustawiasz energię, nastrój i sen – albo dotknij skali"
         case .star:
-            "gdzie jest gwiazdka, tam coś się dzieje: dopisujesz, zapisujesz, idziesz dalej"
+            "gdzie gwiazdka, tam coś się dzieje – dotknij"
         case .places:
-            "dotknij zakładki, a powiem, co w niej znajdziesz. Do samouczka wrócisz w „ja” → ustawienia"
+            "dotknij zakładki, a powiem, co w niej znajdziesz"
         }
     }
 }
@@ -203,15 +204,16 @@ private struct TutorialDots: View {
                 if item == page {
                     OrganicStar()
                         .fill(Palette.accent)
-                        .frame(width: 12, height: 12)
+                        .frame(width: 16, height: 16)
                 } else {
+                    // The cards behind her a little brighter than the ones ahead.
                     Circle()
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 6, height: 6)
+                        .fill(item.rawValue < page.rawValue ? Palette.accent.opacity(0.55) : Color.white.opacity(0.22))
+                        .frame(width: 7, height: 7)
                 }
             }
         }
-        .frame(height: 12)
+        .frame(height: 16)
         .animation(.snappy(duration: 0.25), value: page)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: "karta \(page.rawValue + 1) z \(TutorialPage.allCases.count)"))

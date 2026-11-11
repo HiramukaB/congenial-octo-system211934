@@ -175,19 +175,20 @@ struct WelcomeBar<Center: View>: View {
     }
 }
 
-/// Where she is among the questions: a short line for each, the current one longer and brighter.
-/// Nothing on the steps that ask nothing (the greeting, the guide, the end).
+/// Where she is among the questions: a line for each, the ones behind her filled, the current one
+/// longer and brightest – readable at a glance. Nothing on the steps that ask nothing (the
+/// greeting, the guide, the end).
 struct WelcomeProgress: View {
     let step: WelcomeStep
 
     var body: some View {
         let questions = WelcomeStep.questions
         if let current = questions.firstIndex(of: step) {
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.hairline) {
                 ForEach(0..<questions.count, id: \.self) { index in
                     Capsule()
                         .fill(color(for: index, current: current))
-                        .frame(width: index == current ? 22 : 12, height: 4)
+                        .frame(width: index == current ? 34 : 20, height: 5)
                 }
             }
             .animation(.snappy(duration: 0.25), value: current)
@@ -200,7 +201,7 @@ struct WelcomeProgress: View {
         if index == current {
             return Palette.accent
         }
-        return index < current ? Palette.accent.opacity(0.5) : Color.white.opacity(0.14)
+        return index < current ? Palette.accent.opacity(0.55) : Color.white.opacity(0.16)
     }
 }
 

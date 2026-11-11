@@ -8,7 +8,8 @@ import AboutHerCore
 ///
 /// - Every step she passes ticks and goes straight to `onChange`, so the minutes save themselves
 ///   while she drags; there is nothing to confirm.
-/// - In a scroll view a vertical swipe still scrolls: only a sideways drag moves the value.
+/// - In a scroll view only a sideways drag moves the value (`SidewaysDrag`); a drag up or down
+///   scrolls the page, also when it starts on the track.
 /// - VoiceOver: one adjustable element, one step at a time ("30 minut").
 /// - Minutes between two steps (typed in an older version) show as they are; the handle sits on
 ///   the nearest step until she moves it.
@@ -19,17 +20,9 @@ struct WorkoutMinutesScale: View {
 
     /// The minutes under her finger during a drag, before they have come back through `minutes`.
     @State private var dragMinutes: Int? = nil
-    /// Whether the drag in progress moves along the track or is a scroll.
-    @State private var dragAxis: DragAxis = .undecided
-    /// True while a finger is on the track; it resets itself when the drag ends or is cancelled.
-    @GestureState private var isTouching = false
     /// Counts her steps, for one haptic tick each.
     @State private var steps = 0
     @ScaledMetric(relativeTo: .body) private var trackHeight: CGFloat = 48
-
-    private enum DragAxis {
-        case undecided, along, across
-    }
 
     init(minutes: Int, onChange: @escaping (Int) -> Void) {
         self.minutes = minutes
@@ -78,7 +71,7 @@ struct WorkoutMinutesScale: View {
                 Capsule()
                     .strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
                 Capsule()
-                    .fill(LinearGradient(colors: [Palette.accent.opacity(0.14), Palette.accent.opacity(0.38)],
+                    .fill(LinearGradient(colors: [Palette.accent.opacity(0.12), Palette.accent.opacity(0.34)],
                                          startPoint: .leading, endPoint: .trailing))
                     .frame(width: fillWidth(for: index, width: width))
                 ForEach(WorkoutMinuteSteps.values.indices, id: \.self) { mark in
@@ -90,20 +83,20 @@ struct WorkoutMinutesScale: View {
                 thumb
                     .position(x: center(of: index, width: width), y: trackHeight / 2)
             }
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
+            // The drag first, so it starts the moment the finger moves sideways; a tap is what is
+            // left when it doesn't move.
+            .gesture(SidewaysDrag(onChanged: { location, _ in
+                select(at: location.x, width: width, isDragging: true)
+            }, onEnded: { _, _ in
+                dragMinutes = nil
+            }))
             .onTapGesture(coordinateSpace: .local) { location in
-                select(at: location.x, width: width)
+                select(at: location.x, width: width, isDragging: false)
             }
-            // Simultaneous, so the scroll view around it keeps scrolling on vertical swipes.
-            .simultaneousGesture(drag(width: width))
         }
         .frame(height: trackHeight)
         .animation(.snappy(duration: 0.18), value: index)
-        .onChange(of: isTouching) { _, touching in
-            if !touching {
-                endDrag()
-            }
-        }
     }
 
     /// The handle: a filled circle in the accent with the organic star.
@@ -117,7 +110,7 @@ struct WorkoutMinutesScale: View {
                 .frame(width: size * 0.5, height: size * 0.5)
         }
         .frame(width: size, height: size)
-        .shadow(color: Palette.accent.opacity(0.35), radius: 8)
+        .shadow(color: Palette.accent.opacity(0.25), radius: 6)
     }
 
     // MARK: - Geometry
@@ -152,41 +145,17 @@ struct WorkoutMinutesScale: View {
 
     // MARK: - Changes
 
-    private func drag(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 4)
-            .updating($isTouching) { _, touching, _ in
-                touching = true
-            }
-            .onChanged { drag in
-                if dragAxis == .undecided {
-                    let along = abs(drag.translation.width)
-                    let across = abs(drag.translation.height)
-                    guard Swift.max(along, across) >= 4 else { return }
-                    // Mostly up or down: a scroll, which this drag leaves alone.
-                    dragAxis = along >= across ? .along : .across
-                }
-                guard dragAxis == .along else { return }
-                select(at: drag.location.x, width: width)
-            }
-            .onEnded { _ in
-                endDrag()
-            }
-    }
-
-    private func select(at x: CGFloat, width: CGFloat) {
+    /// A tap or a drag at `x`: the step there, saved at once. During a drag the handle follows the
+    /// finger until the minutes come back through `minutes`.
+    private func select(at x: CGFloat, width: CGFloat, isDragging: Bool) {
         let newValue = WorkoutMinuteSteps.value(at: stepIndex(at: x, width: width))
         let current = dragMinutes ?? minutes
-        if dragAxis == .along {
+        if isDragging {
             dragMinutes = newValue
         }
         guard newValue != current else { return }
         steps += 1
         save(newValue)
-    }
-
-    private func endDrag() {
-        dragAxis = .undecided
-        dragMinutes = nil
     }
 
     /// VoiceOver: one step up or down from the minutes she has.

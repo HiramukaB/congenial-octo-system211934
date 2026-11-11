@@ -75,7 +75,7 @@ struct MomentNotesCard: View {
         let shown = showsAll ? notes : Array(notes.prefix(Self.firstCount))
         if !notes.isEmpty {
             Card(style: .quiet) {
-                VStack(alignment: .leading, spacing: Spacing.item) {
+                VStack(alignment: .leading, spacing: Spacing.cardGap) {
                     SectionHeader("Twoje zapiski")
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(shown) { note in
@@ -87,7 +87,9 @@ struct MomentNotesCard: View {
                     }
                     if notes.count > shown.count {
                         Button("pokaż wszystkie (\(notes.count))") {
-                            showsAll = true
+                            withAnimation(.smooth) {
+                                showsAll = true
+                            }
                         }
                         .buttonStyle(LinkButtonStyle())
                     }

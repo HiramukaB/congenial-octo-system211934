@@ -116,7 +116,7 @@ struct OnboardingView: View {
 
 // MARK: - The greeting and the end
 
-/// The first screen: who the app is for her, in two short sentences.
+/// The first screen: who the app is for her, in one short sentence, in the middle of the screen.
 private struct WelcomeHelloPage: View {
     /// Her data already holds what she logged before the welcome existed.
     let isReturning: Bool
@@ -124,33 +124,13 @@ private struct WelcomeHelloPage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 0) {
-                    WelcomeStars()
-                        .padding(.bottom, Spacing.group)
-                    Text(polish: isReturning ? "dobrze, że jesteś" : "miło Cię poznać")
-                        .displayFont(34, weight: .medium, relativeTo: .largeTitle)
-                        .foregroundStyle(Palette.text)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(polish: isReturning
-                         ? "przejdźmy razem przez kilka ustawień. Pokażę, co już wiem, a Ty tylko sprawdzisz"
-                         : "jestem tu, żeby było Ci łatwiej: cykl, jedzenie, ruch i chwile dla siebie – w Twoim rytmie, bez presji")
-                        .bodyText()
-                        .padding(.top, Spacing.item)
-                    Text(polish: isReturning
-                         ? "to zajmie chwilę – każdy krok możesz pominąć"
-                         : "kilka krótkich pytań – każde możesz pominąć")
-                        .hintText()
-                        .padding(.top, Spacing.cardGap)
-                }
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, Spacing.card)
-                .padding(.top, Spacing.section * 3)
-                .padding(.bottom, Spacing.group)
-            }
-            .scrollIndicators(.hidden)
-            .scrollBounceBehavior(.basedOnSize)
+            WelcomeCenteredText(title: isReturning ? "dobrze, że jesteś" : "miło Cię poznać",
+                                text: isReturning
+                                    ? "przejdźmy razem przez kilka ustawień – pokażę, co już wiem"
+                                    : "cykl, jedzenie, ruch i chwile dla siebie – w Twoim rytmie, bez presji",
+                                hint: isReturning
+                                    ? "to zajmie chwilę – każdy krok możesz pominąć"
+                                    : "kilka krótkich pytań – każde możesz pominąć")
             StarActionButton("zaczynamy", action: onStart)
                 .padding(.horizontal, Spacing.card)
                 .padding(.top, Spacing.item)
@@ -170,33 +150,51 @@ private struct WelcomeDonePage: View {
             WelcomeBar(onBack: onBack) {
                 EmptyView()
             }
-            ScrollView {
-                VStack(spacing: 0) {
-                    WelcomeStars()
-                        .padding(.bottom, Spacing.group)
-                    Text(polish: name.map { "gotowe, \($0)" } ?? "wszystko gotowe")
-                        .displayFont(34, weight: .medium, relativeTo: .largeTitle)
-                        .foregroundStyle(Palette.text)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(polish: "zmienisz to wszystko w każdej chwili – w kalendarzu, w jedzeniu i w ustawieniach")
-                        .bodyText()
-                        .padding(.top, Spacing.item)
-                    Text(polish: "samouczek znajdziesz w „ja” → ustawienia")
-                        .hintText()
-                        .padding(.top, Spacing.cardGap)
-                }
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, Spacing.card)
-                .padding(.top, Spacing.section * 2)
-                .padding(.bottom, Spacing.group)
-            }
-            .scrollIndicators(.hidden)
-            .scrollBounceBehavior(.basedOnSize)
+            WelcomeCenteredText(title: name.map { "gotowe, \($0)" } ?? "wszystko gotowe",
+                                text: "wszystko zmienisz w każdej chwili – w kalendarzu, w jedzeniu i w ustawieniach",
+                                hint: "samouczek znajdziesz w „ja” → ustawienia")
             StarActionButton("chodźmy", action: onFinish)
                 .padding(.horizontal, Spacing.card)
                 .padding(.top, Spacing.item)
                 .padding(.bottom, Spacing.tight)
+        }
+    }
+}
+
+/// The stars, a large serif line, one sentence and a quiet hint, centred in the room above the
+/// button – a little above the middle, where the eye rests. With very large text it scrolls.
+private struct WelcomeCenteredText: View {
+    let title: String
+    let text: String
+    let hint: String
+
+    var body: some View {
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    WelcomeStars()
+                        .padding(.bottom, Spacing.group)
+                    Text(polish: title)
+                        .displayFont(34, weight: .medium, relativeTo: .largeTitle)
+                        .foregroundStyle(Palette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(polish: text)
+                        .bodyText()
+                        .padding(.top, Spacing.item)
+                    Text(polish: hint)
+                        .hintText()
+                        .padding(.top, Spacing.cardGap)
+                }
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Spacing.card)
+                .padding(.vertical, Spacing.group)
+                // Lifts the block above the true middle.
+                .padding(.bottom, Spacing.section * 2)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+            }
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }

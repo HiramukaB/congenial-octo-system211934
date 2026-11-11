@@ -25,7 +25,8 @@ struct ScreenHeader: View {
 
 /// The heading of a card: a lowercase serif title, an optional short line under it, and an
 /// optional accessory on the right (a `StarButton`, a count, a link). The accessory's 44 pt tap
-/// area never makes the header taller than its title, so every card starts the same way.
+/// area never makes the header taller than its title, so every card starts the same way, and it
+/// keeps its natural width: "dopisz posiłek" stays on one line, the title wraps instead.
 ///
 ///     SectionHeader("woda")
 ///     SectionHeader("co zjadłaś") {
@@ -58,6 +59,8 @@ struct SectionHeader<Trailing: View>: View {
                 .padding(.leading, Spacing.item)
                 // A 44 pt button keeps its tap area but takes only the title's height.
                 .padding(.vertical, -10)
+                // Measured first, so a label like "dopisz posiłek" never breaks onto two lines.
+                .layoutPriority(1)
         }
     }
 }

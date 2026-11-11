@@ -103,7 +103,8 @@ No nested cards (the question card in "chwila dla siebie" is a card in a card �
 |---|---|---|
 | a screen | `Screen` + `ScreenHeader` | `Screen(tint:) { ScreenHeader(title: "jedzenie", subtitle: nil) … }` |
 | card heading (+ star/accessory) | `SectionHeader` | `SectionHeader("woda")`, `SectionHeader("co zjadłaś", subtitle: nil) { StarButton(…) }` |
-| rating 1–10 | `DragScale` | `DragScale("energia", value: Int?, range: 1...10, words: [ScaleWord(1...3, "niska"), …], tint:) { (Int?) in save }` or `DragScale("…", value: $binding, …)` |
+| rating 1–10 | `DragScale` | `DragScale("energia", value: Int?, range: 1...10, words: [ScaleWord(1...3, "niska"), …], tint:, layout: .stacked) { (Int?) in save }` or `DragScale("…", value: $binding, …)`; `layout: .compact` for a card with several scales |
+| a control dragged sideways | `SidewaysDrag` | `.gesture(SidewaysDrag(direction: .either, onChanged: { location, translation in … }, onEnded: { translation, velocity in … }))` – never a SwiftUI `DragGesture` inside a `Screen` |
 | yes/no items | `ToggleTile` in `TileGrid` | `TileGrid(columns: 2) { ToggleTile(title:isOn:action:) }` |
 | one of a few | `ChoiceTiles` | `ChoiceTiles(options:selection:columns:label:onSelect:)` |
 | the primary action | `StarActionButton` | `StarActionButton("dalej", size: .large, isEnabled: true) { … }` – `.large` 56 pt full width; `.regular` 44 pt for actions inside a card |
@@ -119,10 +120,25 @@ No nested cards (the question card in "chwila dla siebie" is a card in a card �
 Notes:
 - `DragScale` saves on every step through its closure – hand it straight to the store
   (`store.setSymptomScale(\.energy, to: value, on: day)`). It has its own haptics; don't add more.
-  In a `ScrollView` vertical swipes still scroll. Unset shows "przeciągnij"; "wyczyść" clears.
+  Unset shows "przeciągnij"; "wyczyść" clears (in `.compact` a long press on the name offers it;
+  VoiceOver always has it as an action). `.stacked`: name and value above a full-width 48 pt track
+  – one scale on its own. `.compact`: one 44 pt row, name and value on the left, the track beside
+  them – several scales in one card ("jak się dziś czujesz?"); above the xLarge text size it stacks
+  (`DragScaleLayout.fitsCompactRow(at:)`), so the track keeps room for her finger.
+- Scrolling always wins up and down. A swipe that starts anywhere on a `Screen` – on a card, in the
+  gap between cards, on a scale, on a row – scrolls the page: `Screen` makes its whole content
+  hit-testable, and every sideways control (`DragScale`, the minutes scale, `swipeToDelete`) uses
+  `SidewaysDrag`, a UIKit pan that fails within 6 pt when the finger moves more up or down than
+  sideways, and that the scroll view's pan waits for. Don't put SwiftUI `DragGesture`s on content
+  inside a `Screen`; they can hold on to a vertical swipe and the page won't move.
+- `swipeToDelete` opens only with a swipe to the left; a swipe to the right on a closed row is left
+  to the system (the way back on a pushed screen).
 - Words for the symptom scales: `SymptomScaleWords.energy/.mood/.sleep/.appetite`.
 - Tiles and `StarActionButton` have haptics built in.
-- A trailing accessory in `SectionHeader` keeps its 44 pt target without making the header taller.
+- A trailing accessory in `SectionHeader` keeps its 44 pt target without making the header taller,
+  and it keeps its natural width: the title wraps, the accessory doesn't. `StarActionButton(.regular)`
+  is measured first in any row, so "dopisz posiłek" stays on one line; it wraps only when a whole
+  line can't hold it (the largest text sizes).
 
 ## Motion
 
@@ -220,6 +236,31 @@ małe zwycięstwo" row is an 11 pt star + text – make it a clear action. "kim 
 
 **list do siebie / zdjęcia / sheets** – long intro paragraphs (photos: two). Sheets use grey
 `Form`s and toolbar buttons; make them match the cards and close-to-save.
+
+## What we saw (0.3 screenshots, second look) – shell, dziś, kalendarz, humor
+
+- **Swipes that didn't scroll.** On "dziś" and "humor" a swipe up left the page where it was (the
+  "-2" screenshots were identical). The same swipe from the gap between two cards did scroll
+  "jedzenie" and "ruch", and earlier builds lost a swipe now and then on screens that scroll fine
+  – so it was never the gap alone. What only these two screens had were SwiftUI drag gestures on
+  content outside a card (the inline intention row and the humor cards with `swipeToDelete`) and,
+  on "dziś", four `DragScale`s – the likeliest culprit, as a SwiftUI `DragGesture` in a scroll view
+  can keep a vertical swipe to itself. Fixed for every screen at once: `SidewaysDrag` for every
+  sideways control and a hit-testable `Screen` (above). The UI test now fails when "dziś" or
+  "humor" doesn't move after a swipe, and timings.txt says how far it went.
+- **dziś**: the date and the arrows sat 16 pt under the greeting and the intention floated between
+  them and the cards; now greeting + date are one block, the intention 16 pt below, then the cards.
+  "wróć do dziś" sits beside the title (as in "jedzenie"). The feelings card took most of the screen
+  (four 48 pt tracks, each with its own header and "wyczyść"); now four compact rows. The day in
+  short says "1075 z 1748 kcal" like "jedzenie", not "1075 / 1748".
+- **kalendarz**: "okres / samopoczucie" were two big tiles that read as two buttons; now one calm
+  switch (`CalendarModeSwitch`, 44 pt). The legend took two lines; now one line for what the chosen
+  mode shows; what the stars mean moved into "jak to działa?".
+- **humor**: every joke was a card of its own – a long, heavy stack. "Twoja kolekcja" is now one
+  card with rows (tap to correct, swipe left to delete, the star for a favourite), "dodaj" in its
+  header, the editor opening in place. After the first draw the big button says "losuj coś innego".
+- **Everywhere**: "dopisz posiłek" and "dodaj pomiar" broke onto two lines in card headers
+  (`SectionHeader` gave the title and the pill half the width each) – fixed in the components.
 
 ## Don't change (contract with the screen agents)
 

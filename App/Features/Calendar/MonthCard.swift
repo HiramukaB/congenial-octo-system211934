@@ -7,7 +7,8 @@ nonisolated struct CalendarCell: Identifiable {
 }
 
 /// One month: its name with the steps to the months around it, the days in large cells (her
-/// period, the forecast, the phases, a star on the days she noted how she felt) and a short legend.
+/// period, the forecast, the phases, a star on the days she noted how she felt) and a one-line
+/// legend for what the chosen mode is about.
 struct MonthCard: View {
     @Binding var month: LocalDate
     let engine: CycleEngine
@@ -27,8 +28,10 @@ struct MonthCard: View {
             VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 header
                 grid
-                CalendarLegend()
-                footer
+                VStack(alignment: .leading, spacing: Spacing.tight) {
+                    CalendarLegend(mode: mode)
+                    footer
+                }
             }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: toggles)
@@ -100,7 +103,7 @@ struct MonthCard: View {
         switch mode {
         case .period:
             MoreInfo("jak to działa?",
-                     text: "dotknij dnia, żeby zaznaczyć albo odznaczyć okres. Żeby zapisać, jak się czułaś, wybierz u góry „samopoczucie” albo przytrzymaj dzień")
+                     text: "dotknij dnia, żeby zaznaczyć albo odznaczyć okres. Gwiazdka pod dniem znaczy, że zapisałaś, jak się wtedy czułaś – otworzysz to, wybierając u góry „samopoczucie” albo przytrzymując dzień")
         case .feelings:
             Text(polish: "wybierz dzień, żeby zobaczyć albo zapisać, jak się wtedy czułaś")
                 .hintText()
@@ -272,24 +275,32 @@ struct DayCell: View {
     }
 }
 
-/// What the marks in the month mean, in one or two short lines.
+/// What the marks in the month mean, in one short line: her period, the forecast and the phases
+/// – or, while a tap opens how she felt, the star of the days she noted it. It wraps only at large
+/// text sizes.
 struct CalendarLegend: View {
+    var mode = CalendarTapMode.period
+
     var body: some View {
         let flow = FlowLayout(spacing: Spacing.item, lineSpacing: Spacing.tight)
         flow {
-            LegendItem(label: "okres") {
-                Circle().fill(Palette.accent)
-            }
-            LegendItem(label: "prognoza okresu") {
-                Circle().strokeBorder(CyclePhase.menstrual.tint, style: StrokeStyle(lineWidth: 1.2, dash: [2, 2]))
-            }
-            ForEach([CyclePhase.follicular, .ovulatory, .luteal], id: \.self) { phase in
-                LegendItem(label: phase.season) {
-                    Circle().fill(phase.tint)
+            switch mode {
+            case .period:
+                LegendItem(label: "okres") {
+                    Circle().fill(Palette.accent)
                 }
-            }
-            LegendItem(label: "samopoczucie") {
-                OrganicStar().fill(Palette.accentDim)
+                LegendItem(label: "prognoza") {
+                    Circle().strokeBorder(CyclePhase.menstrual.tint, style: StrokeStyle(lineWidth: 1.2, dash: [2, 2]))
+                }
+                ForEach([CyclePhase.follicular, .ovulatory, .luteal], id: \.self) { phase in
+                    LegendItem(label: phase.season) {
+                        Circle().fill(phase.tint)
+                    }
+                }
+            case .feelings:
+                LegendItem(label: "zapisane samopoczucie") {
+                    OrganicStar().fill(Palette.accent)
+                }
             }
         }
         .font(.footnote)
@@ -304,7 +315,7 @@ struct LegendItem<Swatch: View>: View {
     var body: some View {
         HStack(spacing: Spacing.tight) {
             swatch
-                .frame(width: 10, height: 10)
+                .frame(width: 9, height: 9)
                 .accessibilityHidden(true)
             Text(label)
         }

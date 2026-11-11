@@ -63,7 +63,7 @@ struct SettingsView: View {
 
     private func remindersCard(_ reminders: ReminderSettings) -> some View {
         Card {
-            VStack(alignment: .leading, spacing: Spacing.item) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 SectionHeader("przypomnienia", subtitle: "tylko te, które sama włączysz")
                 if permission == .denied && reminders.isAnyOn {
                     deniedNote
@@ -91,16 +91,16 @@ struct SettingsView: View {
                 Button {
                     openOrClose(kind)
                 } label: {
+                    // The name first; the time smaller under it, in the accent while it is on.
                     VStack(alignment: .leading, spacing: 2) {
                         Text(kind.title)
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(Palette.text)
-                        HStack(spacing: Spacing.tight) {
+                            .rowTitle()
+                        HStack(spacing: Spacing.hairline) {
                             Text(kind.whenLabel(in: reminders))
-                                .font(.body.monospacedDigit())
+                                .font(.subheadline.monospacedDigit())
                                 .fixedSize(horizontal: false, vertical: true)
                             Image(systemName: "chevron.down")
-                                .font(.footnote.weight(.semibold))
+                                .font(.caption.weight(.semibold))
                                 .rotationEffect(.degrees(isOpen ? 180 : 0))
                                 .accessibilityHidden(true)
                         }
@@ -181,7 +181,7 @@ struct SettingsView: View {
 
     private var deniedNote: some View {
         VStack(alignment: .leading, spacing: Spacing.item) {
-            Text(polish: "powiadomienia od about her są wyłączone w ustawieniach telefonu, więc moje przypomnienia nie dotrą")
+            Text(polish: "powiadomienia są wyłączone w telefonie – nie mogę Ci przypomnieć")
                 .font(.footnote)
                 .foregroundStyle(Palette.accent)
                 .fixedSize(horizontal: false, vertical: true)
@@ -244,12 +244,18 @@ struct SettingsView: View {
 
     private func lockCard(isOn: Bool) -> some View {
         Card {
-            VStack(alignment: .leading, spacing: Spacing.item) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 SectionHeader("blokada")
+                // Built like a reminder row: a name, one line under it, the switch.
                 HStack(alignment: .center, spacing: Spacing.item) {
-                    Text("Face ID przy otwieraniu")
-                        .rowTitle()
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Face ID")
+                            .rowTitle()
+                        Text(polish: "przy otwieraniu aplikacji")
+                            .rowDetail()
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     SettingsSwitch(label: "blokada Face ID", isOn: isOn || isTurningLockOn) {
                         toggleLock(isOn: isOn)
                     }

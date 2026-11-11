@@ -3,7 +3,8 @@ import Charts
 import AboutHerCore
 
 /// "waga": a weekly weigh-in and a smoothed trend line – the line matters, not a single number.
-/// The trend leads, big; then the line, the last weigh-in and, on tap, all the others.
+/// The trend leads, big; then the line, "dodaj pomiar" with the way to all weigh-ins beside it,
+/// and the last weigh-in. The field opens where "dodaj pomiar" was.
 ///
 /// The field saves itself: on "gotowe", when she leaves it, when the shown day changes and when
 /// the app goes to the background. It always saves to its own day – the shown day, or the
@@ -28,33 +29,17 @@ struct WeightCard: View {
         let points = store.weightPoints
         Card {
             VStack(alignment: .leading, spacing: Spacing.cardGap) {
-                SectionHeader("waga") {
-                    if editingDay == nil {
-                        StarActionButton("dodaj pomiar", size: .regular) {
-                            startTyping(for: day)
-                        }
-                    }
-                }
-                if let editingDay {
-                    field(for: editingDay)
-                }
-                if wasRejected {
-                    Text(polish: "tego nie zapiszę – wpisz wagę w kilogramach, np. 64,5")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.accent)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                SectionHeader("waga")
                 if let last = points.last {
                     trend(points: points, last: last)
                     if points.count >= 2 {
                         WeightChart(points: points)
                     }
-                    weighIns(points)
+                }
+                weighIns(points)
+                if !points.isEmpty {
                     MoreInfo("dlaczego linia trendu?",
                              text: "waż się raz w tygodniu, o podobnej porze. Wahania rzędu 1–2 kg z dnia na dzień to woda i faza cyklu, nie Twoja praca – dlatego patrzymy na linię, nie na pojedynczy pomiar")
-                } else if editingDay == nil {
-                    EmptyState(title: "tu pojawi się linia trendu",
-                               message: "waż się raz w tygodniu, o podobnej porze")
                 }
             }
         }
@@ -168,46 +153,98 @@ struct WeightCard: View {
         .accessibilityLabel(Text(verbatim: "\(label): \(text)"))
     }
 
-    /// The last weigh-in, or all of them, newest first. Tap one to correct it, swipe left to delete it.
+    /// "dodaj pomiar" – or the open field in its place – then the last weigh-in, or all of them,
+    /// newest first. Tap one to correct it, swipe left to delete it. Before the first weigh-in the
+    /// empty state offers "dodaj pomiar".
     private func weighIns(_ points: [WeightPoint]) -> some View {
         let newestFirst = Array(points.reversed())
         let shown = showsAll ? newestFirst : Array(newestFirst.prefix(1))
-        let toggleTitle: String = showsAll ? "zwiń" : "wszystkie pomiary (\(points.count))"
-        return VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(shown.enumerated()), id: \.element.day) { index, point in
-                if index > 0 {
-                    RowDivider()
-                }
-                ListRow(PolishDate.dayMonth(point.day), detail: index == 0 ? "ostatni pomiar" : nil) {
-                    Text(verbatim: "\(FoodFormat.number(point.kg)) kg")
-                        .valueText()
-                }
-                .swipeToDelete(label: "usuń pomiar", onTap: { startTyping(for: point.day) }) {
-                    if editingDay == point.day {
-                        // The open field must not bring the deleted weigh-in back.
-                        closeField()
-                    }
-                    store.removeWeight(on: point.day)
-                }
+        return VStack(alignment: .leading, spacing: Spacing.item) {
+            // The field always opens in this one place, so it keeps the keyboard while she moves
+            // from one weigh-in to another.
+            if let editingDay {
+                field(for: editingDay)
+            } else if points.isEmpty {
+                EmptyState(title: "tu pojawi się linia trendu",
+                           message: "waż się raz w tygodniu, o podobnej porze",
+                           actionTitle: "dodaj pomiar",
+                           action: { startTyping(for: day) })
+            } else {
+                actions(count: points.count)
             }
-            if points.count > 1 {
-                Button {
-                    withAnimation(.smooth(duration: 0.25)) {
-                        showsAll.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(toggleTitle)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2.weight(.semibold))
-                            .rotationEffect(.degrees(showsAll ? 180 : 0))
-                            .accessibilityHidden(true)
+            if wasRejected {
+                Text(polish: "tego nie zapiszę – wpisz wagę w kilogramach, np. 64,5")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.accent)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !shown.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(shown.enumerated()), id: \.element.day) { index, point in
+                        if index > 0 {
+                            RowDivider()
+                        }
+                        ListRow(PolishDate.dayMonth(point.day), detail: index == 0 ? "ostatni pomiar" : nil) {
+                            Text(verbatim: "\(FoodFormat.number(point.kg)) kg")
+                                .valueText()
+                        }
+                        .swipeToDelete(label: "usuń pomiar", onTap: { startTyping(for: point.day) }) {
+                            if editingDay == point.day {
+                                // The open field must not bring the deleted weigh-in back.
+                                closeField()
+                            }
+                            store.removeWeight(on: point.day)
+                        }
                     }
                 }
-                .buttonStyle(LinkButtonStyle(font: .footnote.weight(.medium)))
-                .padding(.top, Spacing.tight)
             }
         }
+    }
+
+    /// "dodaj pomiar" with the way to all weigh-ins beside it – one under the other when the text
+    /// is large.
+    @ViewBuilder
+    private func actions(count: Int) -> some View {
+        if count > 1 {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 0) {
+                    addButton
+                    Spacer(minLength: Spacing.item)
+                    historyToggle(count: count)
+                }
+                VStack(alignment: .leading, spacing: Spacing.tight) {
+                    addButton
+                    historyToggle(count: count)
+                }
+            }
+        } else {
+            addButton
+        }
+    }
+
+    private var addButton: some View {
+        StarActionButton("dodaj pomiar", size: .regular) {
+            startTyping(for: day)
+        }
+    }
+
+    /// "wszystkie pomiary (8)", or "zwiń" while they are all listed.
+    private func historyToggle(count: Int) -> some View {
+        let title: String = showsAll ? "zwiń" : "wszystkie pomiary (\(count))"
+        return Button {
+            withAnimation(.smooth(duration: 0.25)) {
+                showsAll.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(title)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .rotationEffect(.degrees(showsAll ? 180 : 0))
+                    .accessibilityHidden(true)
+            }
+        }
+        .buttonStyle(LinkButtonStyle(font: .footnote.weight(.medium)))
     }
 
     // MARK: - Saving

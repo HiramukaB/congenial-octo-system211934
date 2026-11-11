@@ -12,6 +12,8 @@ struct SymptomsSheet: View {
                 .padding(.horizontal, Spacing.card)
                 .padding(.top, Spacing.section)
                 .padding(.bottom, Spacing.section)
+                // Like `Screen`: a swipe scrolls wherever it starts, between the rows too.
+                .contentShape(Rectangle())
         }
         .scrollIndicators(.hidden)
         .presentationDetents([.fraction(0.75), .large])

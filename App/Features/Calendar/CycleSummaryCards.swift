@@ -106,7 +106,7 @@ struct PeriodHistoryCard: View {
         let shown = showsAll ? rows : Array(rows.prefix(Self.recentCount))
         let moreLabel: String = showsAll ? "pokaż mniej" : "pokaż wszystkie (\(rows.count))"
         Card(style: .quiet) {
-            VStack(alignment: .leading, spacing: Spacing.item) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
                 SectionHeader("historia okresów")
                 if rows.isEmpty {
                     Text(polish: "tu pojawią się Twoje okresy, gdy zaznaczysz je w kalendarzu")

@@ -61,6 +61,10 @@ struct Card<Content: View>: View {
 /// A scrolling screen with the usual margins and the ambient background: 20 pt at the sides,
 /// 16 pt between cards. The tab bar always stays visible; the scroll view's safe area ends above
 /// it, so the last card scrolls clear of it, with 32 pt to spare.
+///
+/// The whole page takes the touch – the gaps between cards and the margins too – so a swipe
+/// scrolls wherever it starts. Controls that drag sideways use `SidewaysDrag`, which lets every
+/// swipe up or down through to the scroll view.
 struct Screen<Content: View>: View {
     var tint: Color?
     @ViewBuilder var content: Content
@@ -73,6 +77,8 @@ struct Screen<Content: View>: View {
             .padding(.horizontal, Spacing.card)
             .padding(.top, Spacing.tight)
             .padding(.bottom, Spacing.section)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .scrollIndicators(.hidden)
         // Dragging down into the keyboard closes it, which also saves what she typed.

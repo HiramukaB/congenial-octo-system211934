@@ -22,8 +22,8 @@ struct MeView: View {
                             MomentView()
                         }
                         divider
-                        // Slot: owner F builds "humor".
-                        MeLink(title: "humor", detail: "żarty i cytaty, które Cię bawią", symbol: "face.smiling") {
+                        // Slot: owner F builds "humor". An outlined symbol, like the others.
+                        MeLink(title: "humor", detail: "żarty i cytaty, które Cię bawią", symbol: "quote.bubble") {
                             HumorView()
                         }
                         divider
@@ -39,7 +39,8 @@ struct MeView: View {
                     .padding(.vertical, Spacing.hairline)
                 }
                 Card(padding: 0, style: .quiet) {
-                    MeLink(title: "ustawienia", detail: "przypomnienia, blokada, samouczek", symbol: "gearshape") {
+                    // One line, like the places above.
+                    MeLink(title: "ustawienia", detail: "przypomnienia i blokada", symbol: "gearshape") {
                         SettingsView()
                     }
                     .padding(.horizontal, Spacing.card)
@@ -130,6 +131,7 @@ struct MePlaceRow: View {
                         .strokeBorder(Palette.accent.opacity(0.18), lineWidth: 1)
                 }
                 .accessibilityHidden(true)
+            // The words take all the room up to the chevron, so the short line stays on one line.
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .displayFont(19, weight: .medium, relativeTo: .body)
@@ -138,7 +140,7 @@ struct MePlaceRow: View {
                     .rowDetail()
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: Spacing.tight)
+            .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: "chevron.right")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(Palette.muted)

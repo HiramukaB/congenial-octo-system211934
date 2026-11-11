@@ -17,16 +17,10 @@ struct MomentQuestionCard: View {
 
     var body: some View {
         let question = QuestionDeck.question(at: position)
-        let number = QuestionDeck.cardNumber(at: position)
-        let count = QuestionDeck.questions.count
         Card {
             VStack(alignment: .leading, spacing: Spacing.cardGap) {
-                SectionHeader("pytanie do przemyślenia") {
-                    Text(verbatim: "\(number) z \(count)")
-                        .font(.footnote.monospacedDigit())
-                        .foregroundStyle(Palette.muted)
-                        .accessibilityLabel(Text(verbatim: "karta \(number) z \(count)"))
-                }
+                // No "1 z 60" beside it: a question to sit with, not a count to get through.
+                SectionHeader("pytanie do przemyślenia")
                 MomentQuestionFace(question: question)
                     .rotation3DEffect(.degrees(turn), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
                 if isWriting {

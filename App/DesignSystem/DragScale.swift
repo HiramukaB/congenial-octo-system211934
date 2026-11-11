@@ -16,15 +16,32 @@ nonisolated struct ScaleWord: Hashable, Sendable {
     }
 }
 
+/// How a `DragScale` is laid out.
+nonisolated enum DragScaleLayout: Sendable {
+    /// The name and the value above a full-width 48 pt track: one scale on its own.
+    case stacked
+    /// One 44 pt row – the name and the value on the left, the track beside them – for a card with
+    /// several scales. Above the "xLarge" text size it stacks, so the track keeps room for her finger.
+    case compact
+
+    /// Whether `.compact` still fits in one row at this text size.
+    static func fitsCompactRow(at size: DynamicTypeSize) -> Bool {
+        size <= .xLarge
+    }
+}
+
 /// A scale she sets by dragging along it or by tapping anywhere on it – 1 to 10 unless told
 /// otherwise. It replaces rows of small chips.
 ///
 /// - Every step she passes ticks (selection haptic) and goes straight to `onChange`, so the value
 ///   saves itself while she drags; there is nothing to confirm.
-/// - Unset it says "przeciągnij"; once set, "wyczyść" next to the value takes it back
-///   (`onChange(nil)`).
-/// - The track is 48 pt tall (it grows with the text size) and as wide as its container.
-/// - In a scroll view a vertical swipe still scrolls: only a sideways drag moves the value.
+/// - Unset it says "przeciągnij". Once set, "wyczyść" takes it back (`onChange(nil)`): a link next
+///   to the value in `.stacked`, a long press on the name in `.compact`.
+/// - `.stacked` (default): the name and the value above a full-width track, 48 pt tall.
+///   `.compact`: one row – the name and the value on the left, a 44 pt track beside them – for a
+///   card with several scales ("jak się dziś czujesz?"). At large text sizes it stacks.
+/// - In a scroll view only a sideways drag moves the value (`SidewaysDrag`); a drag up or down
+///   scrolls the page, also when it starts on the track.
 /// - VoiceOver: one adjustable element (swipe up or down), "wyczyść" as an action.
 ///
 ///     DragScale("energia", value: day.energy, words: [ScaleWord(1...3, "niska"), …]) { newValue in
@@ -36,65 +53,76 @@ struct DragScale: View {
     private let range: ClosedRange<Int>
     private let words: [ScaleWord]
     private let tint: Color
+    private let layout: DragScaleLayout
     private let onChange: (Int?) -> Void
 
     /// The value under her finger during a drag, before it has come back through `value`.
     @State private var dragValue: Int? = nil
-    /// Whether the drag in progress moves along the track or is a scroll.
-    @State private var dragAxis: DragAxis = .undecided
-    /// True while a finger is on the track; it resets itself when the drag ends or is cancelled.
-    @GestureState private var isTouching = false
     /// Counts her steps, for one haptic tick each.
     @State private var steps = 0
-    @ScaledMetric(relativeTo: .body) private var trackHeight: CGFloat = 48
-
-    private enum DragAxis {
-        case undecided, along, across
-    }
+    @ScaledMetric(relativeTo: .body) private var stackedTrackHeight: CGFloat = 48
+    @ScaledMetric(relativeTo: .body) private var compactTrackHeight: CGFloat = 44
+    /// The name column of `.compact`: wide enough for "6 · w porządku", so the tracks line up.
+    @ScaledMetric(relativeTo: .body) private var compactLabelWidth: CGFloat = 98
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// `value` outside `range` is shown at the nearest end.
     init(_ title: String, value: Int?, range: ClosedRange<Int> = 1...10, words: [ScaleWord] = [],
-         tint: Color = Palette.accent, onChange: @escaping (Int?) -> Void) {
+         tint: Color = Palette.accent, layout: DragScaleLayout = .stacked, onChange: @escaping (Int?) -> Void) {
         self.title = title
         self.value = value.map { Swift.min(Swift.max($0, range.lowerBound), range.upperBound) }
         self.range = range
         self.words = words
         self.tint = tint
+        self.layout = layout
         self.onChange = onChange
     }
 
     /// The same scale, writing straight into `value`.
     init(_ title: String, value: Binding<Int?>, range: ClosedRange<Int> = 1...10, words: [ScaleWord] = [],
-         tint: Color = Palette.accent) {
-        self.init(title, value: value.wrappedValue, range: range, words: words, tint: tint) { newValue in
+         tint: Color = Palette.accent, layout: DragScaleLayout = .stacked) {
+        self.init(title, value: value.wrappedValue, range: range, words: words, tint: tint, layout: layout) { newValue in
             value.wrappedValue = newValue
         }
     }
 
     var body: some View {
         let shown = dragValue ?? value
-        VStack(alignment: .leading, spacing: Spacing.tight) {
-            header(shown)
-            track(shown)
-        }
-        .sensoryFeedback(.selection, trigger: steps)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(title))
-        .accessibilityValue(Text(spokenValue(shown)))
-        .accessibilityAdjustableAction { direction in
-            adjust(direction)
-        }
-        .accessibilityActions {
-            if value != nil {
-                Button("wyczyść") {
-                    clear()
+        scale(shown)
+            .sensoryFeedback(.selection, trigger: steps)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(title))
+            .accessibilityValue(Text(spokenValue(shown)))
+            .accessibilityAdjustableAction { direction in
+                adjust(direction)
+            }
+            .accessibilityActions {
+                if value != nil {
+                    Button("wyczyść") {
+                        clear()
+                    }
                 }
+            }
+    }
+
+    // MARK: - Stacked and compact
+
+    @ViewBuilder
+    private func scale(_ shown: Int?) -> some View {
+        if layout == .compact && DragScaleLayout.fitsCompactRow(at: dynamicTypeSize) {
+            HStack(alignment: .center, spacing: Spacing.item) {
+                withClearMenu(compactLabel(shown))
+                track(shown, height: compactTrackHeight)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: Spacing.tight) {
+                header(shown)
+                track(shown, height: stackedTrackHeight)
             }
         }
     }
 
-    // MARK: - Parts
-
+    /// `.stacked`: the name on the left; the value and "wyczyść" – or "przeciągnij" – on the right.
     private func header(_ shown: Int?) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.tight) {
             Text(title)
@@ -118,6 +146,44 @@ struct DragScale: View {
         .animation(.snappy(duration: 0.2), value: shown)
     }
 
+    /// `.compact`: the name, and under it the value ("6 · średnia") or "przeciągnij".
+    private func compactLabel(_ shown: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.body)
+                .foregroundStyle(Palette.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            if let shown {
+                Text(shownText(shown))
+                    .font(.footnote.weight(.medium).monospacedDigit())
+                    .foregroundStyle(tint)
+                    .contentTransition(.numericText(value: Double(shown)))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("przeciągnij")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(width: compactLabelWidth, alignment: .leading)
+        .contentShape(Rectangle())
+        .animation(.snappy(duration: 0.2), value: shown)
+    }
+
+    /// In `.compact` there is no room for the link: once set, a long press on the name offers "wyczyść".
+    @ViewBuilder
+    private func withClearMenu(_ label: some View) -> some View {
+        if value != nil {
+            label.contextMenu {
+                Button("wyczyść", action: clear)
+            }
+        } else {
+            label
+        }
+    }
+
     private var clearButton: some View {
         Button(action: clear) {
             Text("wyczyść")
@@ -132,7 +198,9 @@ struct DragScale: View {
         .buttonStyle(.plain)
     }
 
-    private func track(_ shown: Int?) -> some View {
+    /// The track: a soft capsule with a dot per step, tinted up to the handle. A tap sets the step
+    /// under the finger; a sideways drag moves it.
+    private func track(_ shown: Int?, height: CGFloat) -> some View {
         GeometryReader { proxy in
             let width = proxy.size.width
             ZStack(alignment: .leading) {
@@ -142,40 +210,40 @@ struct DragScale: View {
                     .strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
                 if let shown {
                     Capsule()
-                        .fill(LinearGradient(colors: [tint.opacity(0.14), tint.opacity(0.38)],
+                        .fill(LinearGradient(colors: [tint.opacity(0.12), tint.opacity(0.34)],
                                              startPoint: .leading, endPoint: .trailing))
-                        .frame(width: fillWidth(for: shown, width: width))
+                        .frame(width: fillWidth(for: shown, width: width, height: height))
                 }
                 ForEach(Array(range), id: \.self) { step in
                     Circle()
                         .fill(dotColor(step: step, shown: shown))
                         .frame(width: 5, height: 5)
-                        .position(x: center(of: step, width: width), y: trackHeight / 2)
+                        .position(x: center(of: step, width: width, height: height), y: height / 2)
                 }
                 if let shown {
-                    thumb
-                        .position(x: center(of: shown, width: width), y: trackHeight / 2)
+                    thumb(height: height)
+                        .position(x: center(of: shown, width: width, height: height), y: height / 2)
                 }
             }
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
+            // The drag first, so it starts the moment the finger moves sideways; a tap is what is
+            // left when it doesn't move.
+            .gesture(SidewaysDrag(onChanged: { location, _ in
+                select(at: location.x, width: width, height: height, isDragging: true)
+            }, onEnded: { _, _ in
+                dragValue = nil
+            }))
             .onTapGesture(coordinateSpace: .local) { location in
-                select(at: location.x, width: width)
+                select(at: location.x, width: width, height: height, isDragging: false)
             }
-            // Simultaneous, so the scroll view around it keeps scrolling on vertical swipes.
-            .simultaneousGesture(drag(width: width))
         }
-        .frame(height: trackHeight)
+        .frame(height: height)
         .animation(.snappy(duration: 0.18), value: shown)
-        .onChange(of: isTouching) { _, touching in
-            if !touching {
-                endDrag()
-            }
-        }
     }
 
     /// The handle: a filled circle in the tint with the organic star.
-    private var thumb: some View {
-        let size = Swift.max(0, trackHeight - 10)
+    private func thumb(height: CGFloat) -> some View {
+        let size = Swift.max(0, height - 10)
         return ZStack {
             Circle()
                 .fill(tint)
@@ -184,15 +252,15 @@ struct DragScale: View {
                 .frame(width: size * 0.5, height: size * 0.5)
         }
         .frame(width: size, height: size)
-        .shadow(color: tint.opacity(0.35), radius: 8)
+        .shadow(color: tint.opacity(0.25), radius: 6)
     }
 
     // MARK: - Geometry
 
     /// Where the centre of `step` sits: the first and the last step half a track height in from
     /// the ends, so the handle never pokes out.
-    private func center(of step: Int, width: CGFloat) -> CGFloat {
-        let inset = trackHeight / 2
+    private func center(of step: Int, width: CGFloat, height: CGFloat) -> CGFloat {
+        let inset = height / 2
         let usable = Swift.max(0, width - 2 * inset)
         let span = range.upperBound - range.lowerBound
         guard span > 0 else { return width / 2 }
@@ -201,8 +269,8 @@ struct DragScale: View {
     }
 
     /// The step nearest to `x`.
-    private func step(at x: CGFloat, width: CGFloat) -> Int {
-        let inset = trackHeight / 2
+    private func step(at x: CGFloat, width: CGFloat, height: CGFloat) -> Int {
+        let inset = height / 2
         let usable = width - 2 * inset
         let span = range.upperBound - range.lowerBound
         guard span > 0, usable > 0 else { return range.lowerBound }
@@ -213,8 +281,8 @@ struct DragScale: View {
     }
 
     /// The tinted part reaches round the handle.
-    private func fillWidth(for value: Int, width: CGFloat) -> CGFloat {
-        Swift.max(0, Swift.min(width, center(of: value, width: width) + trackHeight / 2))
+    private func fillWidth(for value: Int, width: CGFloat, height: CGFloat) -> CGFloat {
+        Swift.max(0, Swift.min(width, center(of: value, width: width, height: height) + height / 2))
     }
 
     private func dotColor(step: Int, shown: Int?) -> Color {
@@ -224,41 +292,17 @@ struct DragScale: View {
 
     // MARK: - Changes
 
-    private func drag(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 4)
-            .updating($isTouching) { _, touching, _ in
-                touching = true
-            }
-            .onChanged { drag in
-                if dragAxis == .undecided {
-                    let along = abs(drag.translation.width)
-                    let across = abs(drag.translation.height)
-                    guard Swift.max(along, across) >= 4 else { return }
-                    // Mostly up or down: a scroll, which this drag leaves alone.
-                    dragAxis = along >= across ? .along : .across
-                }
-                guard dragAxis == .along else { return }
-                select(at: drag.location.x, width: width)
-            }
-            .onEnded { _ in
-                endDrag()
-            }
-    }
-
-    private func select(at x: CGFloat, width: CGFloat) {
-        let newValue = step(at: x, width: width)
+    /// A tap or a drag at `x`: the step there, saved at once. During a drag the handle follows the
+    /// finger until the value comes back through `value`.
+    private func select(at x: CGFloat, width: CGFloat, height: CGFloat, isDragging: Bool) {
+        let newValue = step(at: x, width: width, height: height)
         let current = dragValue ?? value
-        if dragAxis == .along {
+        if isDragging {
             dragValue = newValue
         }
         guard newValue != current else { return }
         steps += 1
         onChange(newValue)
-    }
-
-    private func endDrag() {
-        dragAxis = .undecided
-        dragValue = nil
     }
 
     /// VoiceOver: one step up or down; from unset, the middle of the scale.
