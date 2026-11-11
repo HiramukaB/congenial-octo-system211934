@@ -95,7 +95,7 @@ Zostały świadomie, po przeglądzie parsera przed 0.1.9:
   i nazywają jak naleśniki z serem);
 - „kotlety z cukinii” – to wciąż schabowy z cukinią, bo „kotlet z cukinią” to zwykle schabowy z warzywem;
 - „z kasią” małą literą – wciąż zgaduje kaszę; imię rozpoznaje tylko wielka litera w środku zdania („z Kasią”);
-- „Z Oliwią”, „z Jagodą” – imię, które odmienia się jak jedzenie, liczy się jako oliwa albo borówki: wielka
+- „Z Oliwią”, „z Maliną” – imię, które odmienia się jak jedzenie, liczy się jako oliwa albo maliny: wielka
   litera wyłącza tylko zgadywanie literówek, bo tak pisze się też marki („kanapka z Nutellą”);
 - „około 8 owsianka” – bez słowa o posiłku („rano”, „śniadanie” …) 8 to nadal 8 misek;
 - „krążki cebulowe” – nieznane, do nauczenia jako „cebulowe”, bo „krążki” to jednostka.

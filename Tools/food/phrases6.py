@@ -322,7 +322,7 @@ E("kurczak z ryżem. Z mężem dwie pizze na pół", ("piers-z-kurczaka", 1, "se
   ("pizza", 1, "piece"))
 E("Kurczak z ryżem. Z Oliwią pizza na pół.", ("piers-z-kurczaka", 1, "serving"), ("ryz", 1, "serving"), "oliwa",
   ("pizza", 0.5, "piece"))
-E("Obiad: kurczak z ryżem. Z Jagodą pizza na pół.", ("piers-z-kurczaka", 1, "serving"), ("ryz", 1, "serving"),
-  "borowki", ("pizza", 0.5, "piece"))
+E("Obiad: kurczak z ryżem. Z Maliną pizza na pół.", ("piers-z-kurczaka", 1, "serving"), ("ryz", 1, "serving"),
+  "maliny", ("pizza", 0.5, "piece"))
 E("pizza, z mężem na 2 osoby", ("pizza", 1, "piece"))
 E("jajecznica, z ok. 3 jajek", ("jajko", 3, "piece"))
