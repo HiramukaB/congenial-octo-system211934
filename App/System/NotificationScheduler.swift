@@ -10,7 +10,7 @@ import AboutHerCore
 /// `ReminderPlan` works out. It never asks for permission itself – SettingsView asks when she
 /// turns her first reminder on – and the demo never touches the phone's notifications.
 enum NotificationScheduler {
-    private static let isDemo = ProcessInfo.processInfo.arguments.contains("-demoData")
+    private static let isDemo = LaunchArguments.usesDemoData
     /// The refresh that is waiting or running; a newer one waits for it to finish.
     private static var pendingRefresh: Task<Void, Never>?
     /// Something was scheduled since the app started.

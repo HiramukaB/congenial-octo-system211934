@@ -66,7 +66,7 @@ private struct AppLockLayer: View {
 final class AppLockSession {
     static let shared = AppLockSession()
     /// Never in the demo, so screenshots and UI tests never wait for Face ID.
-    static let isAvailable = !ProcessInfo.processInfo.arguments.contains("-demoData")
+    static let isAvailable = !LaunchArguments.usesDemoData
 
     /// She has confirmed it's her since the app last went to the background.
     private(set) var isUnlocked = false
@@ -212,7 +212,9 @@ private enum LockAuthenticator {
     }
 }
 
-/// The calm cover: the night colour and the app's star. After a cancelled Face ID, a star to try again.
+/// The calm cover: the night colour, the app's star and its name in the middle. After a cancelled
+/// Face ID, one large "odblokuj" near her thumb to try again. It reads nothing from the store: it
+/// is also drawn in a window of its own, outside the app's views.
 private struct LockCoverView: View {
     let session: AppLockSession
 
@@ -221,27 +223,32 @@ private struct LockCoverView: View {
             RadialGradient(colors: [Color(hex: 0x2A241C), Palette.background],
                            center: .center, startRadius: 0, endRadius: 420)
                 .ignoresSafeArea()
-            VStack(spacing: 16) {
+            VStack(spacing: Spacing.cardGap) {
                 OrganicStar()
                     .fill(Palette.accent)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
+                    .shadow(color: Palette.accent.opacity(0.35), radius: 18)
                     .accessibilityHidden(true)
                 Text("about her")
-                    .displayFont(22, weight: .medium, relativeTo: .title3)
+                    .displayFont(26, weight: .medium, relativeTo: .title2)
                     .foregroundStyle(Palette.text)
-                if session.waitsForTap {
-                    StarButton(label: "odblokuj", size: 21, prominent: true) {
-                        session.unlock()
-                    }
-                    Text(polish: "dotknij gwiazdki, a poproszę o Face ID")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.muted)
-                        .multilineTextAlignment(.center)
-                }
             }
-            .padding(32)
+            .padding(Spacing.section)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottom) {
+            if session.waitsForTap {
+                StarActionButton("odblokuj") {
+                    session.unlock()
+                }
+                .accessibilityHint(Text("poproszę o Face ID albo kod telefonu"))
+                // The same width as the large buttons everywhere else in the app.
+                .padding(.horizontal, Spacing.card)
+                .padding(.bottom, Spacing.section)
+                .transition(.opacity)
+            }
+        }
+        .animation(.smooth, value: session.waitsForTap)
         .preferredColorScheme(.dark)
     }
 }

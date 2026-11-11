@@ -24,7 +24,8 @@ struct RootView: View {
     /// The day "jedzenie" shows (0 = today, -1 = yesterday …). Kept here, so "otwórz jedzenie"
     /// on "dziś" can open the day she is looking at there.
     @State private var foodDayOffset = 0
-    @State private var isShowingProblem = false
+    /// The welcome steps cover the tabs until she has finished them (`AppStore.needsOnboarding`).
+    @State private var isShowingOnboarding = false
 
     var body: some View {
         TabView(selection: $selection) {
@@ -45,7 +46,8 @@ struct RootView: View {
             }
         }
         .tint(Palette.accent)
-        .tabBarMinimizeBehavior(.onScrollDown)
+        // Always there: the tab bar never shrinks away while she scrolls.
+        .tabBarMinimizeBehavior(.never)
         .onChange(of: scenePhase, initial: true) { oldPhase, phase in
             if phase == .active {
                 store.refreshToday()
@@ -72,17 +74,57 @@ struct RootView: View {
             // A new day began: "jedzenie" starts again from today.
             foodDayOffset = 0
         }
-        .onChange(of: store.problem, initial: true) { _, problem in
-            isShowingProblem = problem != nil
-        }
-        .alert("coś poszło nie tak", isPresented: $isShowingProblem) {
-            Button("rozumiem", role: .cancel) {
-                store.problem = nil
+        .onChange(of: store.needsOnboarding, initial: true) { _, needs in
+            guard needs != isShowingOnboarding else { return }
+            // In at once on launch, so the tabs never flash first; away with the usual slide.
+            var transaction = Transaction()
+            transaction.disablesAnimations = needs
+            withTransaction(transaction) {
+                isShowingOnboarding = needs
             }
-        } message: {
-            Text(store.problem ?? "")
         }
+        .fullScreenCover(isPresented: $isShowingOnboarding) {
+            // A brand-new install, or her data from before the welcome existed: the steps show what
+            // is already there. It closes when `store.completeOnboarding()` is called.
+            OnboardingView()
+                .problemAlert()
+                .interactiveDismissDisabled()
+        }
+        // While the welcome covers the tabs (or is about to), its own alert speaks for the store.
+        .problemAlert(isEnabled: !store.needsOnboarding && !isShowingOnboarding)
         // Face ID and the cover in the app switcher, over everything above.
         .appLock()
+    }
+}
+
+extension View {
+    /// "coś poszło nie tak": the store's problem, shown once wherever she is. RootView puts it on
+    /// the tabs and on the welcome steps; `isEnabled` keeps the tabs' one quiet while the welcome
+    /// covers them.
+    func problemAlert(isEnabled: Bool = true) -> some View {
+        modifier(ProblemAlert(isEnabled: isEnabled))
+    }
+}
+
+private struct ProblemAlert: ViewModifier {
+    @Environment(AppStore.self) private var store
+    let isEnabled: Bool
+    @State private var isShowing = false
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: store.problem, initial: true) { _, problem in
+                isShowing = isEnabled && problem != nil
+            }
+            .onChange(of: isEnabled) { _, enabled in
+                isShowing = enabled && store.problem != nil
+            }
+            .alert("coś poszło nie tak", isPresented: $isShowing) {
+                Button("rozumiem", role: .cancel) {
+                    store.problem = nil
+                }
+            } message: {
+                Text(store.problem ?? "")
+            }
     }
 }

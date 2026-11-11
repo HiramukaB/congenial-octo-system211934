@@ -9,104 +9,133 @@ struct LetterView: View {
     @State private var isWriting = false
     /// The open letters she tapped to read, on this visit.
     @State private var readIDs: Set<UUID> = []
+    /// "zapieczętowałam…" for a moment after the sheet closed with a sealed letter.
+    @State private var sealedNote: String? = nil
+    @State private var seals = 0
 
     var body: some View {
         let today = store.today
         let open = store.data.openLetters(on: today)
         let sealed = store.data.sealedLetters(on: today)
         Screen {
-            Text("list do siebie").screenTitle()
-            Text(polish: "napisz kilka słów do przyszłej siebie. Zapieczętuję list do dnia, który wybierzesz – wcześniej go nie przeczytasz")
-                .bodyText()
-            Button(action: startWriting) {
+            ScreenHeader(title: "list do siebie", subtitle: "zapieczętuję go do dnia, który wybierzesz")
+            if open.isEmpty && sealed.isEmpty {
                 Card {
-                    HStack(spacing: 12) {
-                        OrganicStar()
-                            .fill(Palette.accent)
-                            .frame(width: 14, height: 14)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("napisz list").sectionTitle()
-                            Text(polish: "otworzysz go za miesiąc, za 3 miesiące, za pół roku albo w dniu, który wybierzesz")
-                                .font(.footnote)
-                                .foregroundStyle(Palette.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 0)
-                    }
+                    EmptyState(title: "napisz kilka słów do przyszłej siebie",
+                               actionTitle: "napisz list",
+                               action: { startWriting() })
+                }
+            } else {
+                StarActionButton("napisz list") {
+                    startWriting()
                 }
             }
-            .buttonStyle(.plain)
+            if let sealedNote {
+                ConfirmationNote(text: sealedNote)
+            }
             if !open.isEmpty {
-                Card {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("otwarte").sectionTitle()
-                        ForEach(open) { letter in
-                            openRow(letter, today: today)
-                        }
-                    }
-                }
+                openCard(open, today: today)
             }
             if !sealed.isEmpty {
-                Card {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("zapieczętowane").sectionTitle()
-                        ForEach(sealed) { letter in
-                            sealedRow(letter, today: today)
-                        }
-                    }
-                }
+                sealedCard(sealed, today: today)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isWriting) {
-            LetterWritingSheet()
+            LetterWritingSheet { opensOn in
+                showSealed(opensOn)
+            }
+        }
+        .task(id: seals) {
+            guard seals > 0 else { return }
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.smooth) {
+                sealedNote = nil
+            }
         }
     }
 
-    /// A letter she can read: a tap opens it and closes it again.
-    private func openRow(_ letter: Letter, today: LocalDate) -> some View {
-        let isRead = readIDs.contains(letter.id)
-        return VStack(alignment: .leading, spacing: 4) {
-            Text("list z \(InnerFormat.date(letter.writtenOn, today: today))")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Palette.text)
-            if isRead {
-                Text(letter.text)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.text2)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("otworzył się \(InnerFormat.day(letter.opensOn, today: today)) · dotknij, żeby przeczytać")
-                    .font(.caption)
-                    .foregroundStyle(Palette.muted)
+    // MARK: - Open letters
+
+    /// Letters she can read now – the reason to come here, so they stand out.
+    private func openCard(_ letters: [Letter], today: LocalDate) -> some View {
+        Card(style: .highlight) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("otwarte")
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(letters) { letter in
+                        if letter.id != letters.first?.id {
+                            RowDivider()
+                        }
+                        openRow(letter, today: today)
+                    }
+                }
             }
         }
-        .padding(.vertical, 6)
+    }
+
+    /// A letter she can read: a tap opens it in place and closes it again.
+    private func openRow(_ letter: Letter, today: LocalDate) -> some View {
+        let isRead = readIDs.contains(letter.id)
+        return VStack(alignment: .leading, spacing: 0) {
+            ListRow("list z \(InnerFormat.date(letter.writtenOn, today: today))",
+                    detail: "otworzył się \(InnerFormat.day(letter.opensOn, today: today))") {
+                Image(systemName: isRead ? "envelope.open" : "envelope")
+                    .font(.body)
+                    .foregroundStyle(Palette.accent)
+                    .accessibilityHidden(true)
+            }
+            if isRead {
+                Text(polish: letter.text)
+                    .displayFont(19, italic: true, relativeTo: .body)
+                    .foregroundStyle(Palette.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, Spacing.item)
+                    .transition(.opacity)
+            }
+        }
         .frame(maxWidth: .infinity, alignment: .leading)
         .swipeToDelete(label: "usuń list", onTap: { toggleReading(letter.id) }) {
             store.removeLetter(letter.id)
         }
+        .accessibilityHint(Text(isRead ? "zwija list" : "otwiera list do przeczytania"))
     }
 
-    /// A sealed letter shows only when it opens.
+    // MARK: - Sealed letters
+
+    private func sealedCard(_ letters: [Letter], today: LocalDate) -> some View {
+        Card {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("zapieczętowane")
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(letters) { letter in
+                        if letter.id != letters.first?.id {
+                            RowDivider()
+                        }
+                        sealedRow(letter, today: today)
+                    }
+                }
+            }
+        }
+    }
+
+    /// A sealed letter shows only when it opens, and how long until then.
     private func sealedRow(_ letter: Letter, today: LocalDate) -> some View {
         let days = today.days(to: letter.opensOn)
         let countdown = days == 1 ? "jutro" : "za \(PolishPlural.days(days))"
-        return VStack(alignment: .leading, spacing: 3) {
-            Text("otworzysz \(InnerFormat.date(letter.opensOn, today: today))")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Palette.text)
-            Text("\(countdown) · napisany \(InnerFormat.day(letter.writtenOn, today: today))")
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
+        return ListRow("otworzysz \(InnerFormat.date(letter.opensOn, today: today))",
+                       detail: "napisany \(InnerFormat.day(letter.writtenOn, today: today))") {
+            Text(countdown)
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(Palette.accent)
         }
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .swipeToDelete(label: "usuń list") {
             store.removeLetter(letter.id)
         }
     }
+
+    // MARK: - Changes
 
     /// The sheet opens only when her data can be changed, so a letter is never written for nothing.
     private func startWriting() {
@@ -124,15 +153,26 @@ struct LetterView: View {
             }
         }
     }
+
+    private func showSealed(_ opensOn: LocalDate) {
+        withAnimation(.smooth) {
+            sealedNote = "zapieczętowałam list – otworzysz go \(InnerFormat.date(opensOn, today: store.today))"
+        }
+        seals += 1
+    }
 }
 
-/// "nowy list": the day it opens and the letter. Closing the sheet – swiped down or "gotowe" –
-/// seals it; an empty one isn't kept. When the app goes to the background the letter is saved as
-/// it is, and closing later saves the rest.
+/// "nowy list": when it opens – four large choices, a calendar for "inny dzień" – and the letter.
+/// Closing the sheet – swiped down or with the close button – seals it; an empty one isn't kept.
+/// When the app goes to the background the letter is saved as it is, and closing later saves the
+/// rest.
 private struct LetterWritingSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+
+    /// Called once the sheet has closed with the letter sealed, with the day it opens.
+    let onSealed: (LocalDate) -> Void
 
     @State private var letterID = UUID()
     @State private var text = ""
@@ -144,16 +184,20 @@ private struct LetterWritingSheet: View {
 
     var body: some View {
         let today = store.today
+        let opensOn = openingDay(today: today)
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("kiedy go otworzysz").sectionTitle()
-                    Picker("kiedy go otworzysz", selection: $opening) {
-                        ForEach(LetterOpening.allCases, id: \.self) { option in
-                            Text(option.label).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+            Screen {
+                ScreenHeader(title: "nowy list",
+                             subtitle: "otworzysz go \(InnerFormat.date(opensOn, today: today))")
+                VStack(alignment: .leading, spacing: Spacing.item) {
+                    Text("kiedy go otworzysz")
+                        .sectionTitle()
+                        .accessibilityAddTraits(.isHeader)
+                    ChoiceTiles(options: LetterOpening.allCases,
+                                selection: opening,
+                                columns: 2,
+                                label: { option in option.label },
+                                onSelect: { option in choose(option) })
                     if opening == .chosenDay {
                         DatePicker("dzień otwarcia",
                                    selection: $chosenDate,
@@ -162,52 +206,48 @@ private struct LetterWritingSheet: View {
                             .datePickerStyle(.graphical)
                             .tint(Palette.accent)
                             .environment(\.locale, Locale(identifier: "pl_PL"))
+                            .transition(.opacity)
                     }
-                    Text(polish: "otworzysz go \(InnerFormat.date(openingDay(today: today), today: today)). Zapieczętuję list, gdy zamkniesz tę kartkę")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                    TextField("napisz coś do siebie. Przeczytasz to za jakiś czas – i pewnie będziesz już gdzie indziej",
-                              text: $text, axis: .vertical)
+                }
+                VStack(alignment: .leading, spacing: Spacing.tight) {
+                    TextField("list",
+                              text: $text,
+                              prompt: Text("napisz coś do siebie – przeczytasz to, gdy będziesz już gdzie indziej")
+                                  .foregroundStyle(Palette.muted),
+                              axis: .vertical)
                         .font(.body)
                         .foregroundStyle(Palette.text)
-                        .lineLimit(12...)
+                        .lineLimit(10...)
                         .focused($isFocused)
-                        .padding(14)
-                        .background {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Palette.accentBackground.opacity(0.6))
-                        }
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
-                        }
+                        .fieldBox()
                         .onAppear {
                             isFocused = true
                         }
+                    Text(polish: "zapieczętuję go, gdy zamkniesz kartkę")
+                        .hintText()
                 }
-                .padding(20)
+                .padding(.top, Spacing.tight)
             }
-            // Dragging down into the keyboard closes it; the letter stays as it is.
-            .scrollDismissesKeyboard(.interactively)
-            .background(Palette.background)
-            .navigationTitle("nowy list")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    // Closing seals the letter (see onDisappear), so "gotowe" only closes.
+                ToolbarItem(placement: .topBarTrailing) {
+                    // Closing seals the letter (see onDisappear); there is nothing to confirm.
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "checkmark")
+                        Image(systemName: "xmark")
                     }
-                    .accessibilityLabel("gotowe")
+                    .accessibilityLabel(Text("zamknij i zapieczętuj"))
                 }
             }
         }
+        .tint(Palette.accent)
         .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
         .onDisappear {
-            seal()
+            if let opensOn = seal() {
+                onSealed(opensOn)
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             // In the background the app may be ended at any time: keep the letter as it is now.
@@ -215,6 +255,16 @@ private struct LetterWritingSheet: View {
                 seal()
                 store.saveNow()
             }
+        }
+    }
+
+    private func choose(_ option: LetterOpening) {
+        withAnimation(.snappy(duration: 0.2)) {
+            opening = option
+        }
+        if option == .chosenDay {
+            // The calendar needs the room the keyboard takes.
+            isFocused = false
         }
     }
 
@@ -234,21 +284,28 @@ private struct LetterWritingSheet: View {
         return Swift.max(day, today.adding(days: 1))
     }
 
-    /// Seals the letter as it is now. Emptied after it was saved in the background, it goes again.
-    private func seal() {
+    /// Seals the letter as it is now and returns the day it opens; nil when no letter is kept.
+    /// Emptied after it was saved in the background, it goes again. Refused now, the version
+    /// saved earlier stays sealed.
+    @discardableResult
+    private func seal() -> LocalDate? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             if saved != nil {
                 store.removeLetter(letterID)
                 saved = nil
             }
-            return
+            return nil
         }
         let current = LetterSaved(text: trimmed, opensOn: openingDay(today: store.today))
-        guard current != saved else { return }
+        if current == saved {
+            return current.opensOn
+        }
         if store.sealLetter(id: letterID, text: current.text, opensOn: current.opensOn) {
             saved = current
+            return current.opensOn
         }
+        return saved?.opensOn
     }
 }
 
@@ -259,14 +316,14 @@ private struct LetterSaved: Equatable {
 }
 
 /// When a new letter opens.
-private enum LetterOpening: CaseIterable, Hashable {
+private nonisolated enum LetterOpening: CaseIterable, Hashable {
     case oneMonth, threeMonths, sixMonths, chosenDay
 
     var label: String {
         switch self {
-        case .oneMonth: "miesiąc"
-        case .threeMonths: "3 miesiące"
-        case .sixMonths: "pół roku"
+        case .oneMonth: "za miesiąc"
+        case .threeMonths: "za 3 miesiące"
+        case .sixMonths: "za pół roku"
         case .chosenDay: "inny dzień"
         }
     }

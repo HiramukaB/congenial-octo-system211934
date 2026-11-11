@@ -18,6 +18,9 @@ Cykl, jedzenie, ruch, sen i wnętrze w jednym miejscu, w zgodzie z rytmem cyklu 
 | Jedzenie: posiłki wpisywane zwykłym tekstem (polski parser, baza produktów na 100 g, uczenie nowych produktów), bilans dnia z celami z profilu, woda, waga z linią trendu | gotowe |
 | Przepisy dopasowane do fazy, plan tygodnia, zakupy | w budowie |
 | Samopoczucie, przypomnienia, blokada Face ID, ruch, wnętrze, list do siebie, zdjęcia, chwila dla siebie | wersja podstawowa |
+| Powitanie przy pierwszym otwarciu (imię, cykl, liczby, cele, przypomnienia, Face ID) i samouczek | gotowe |
+| Humor: żarty i zabawne cytaty, losowanie, „coś na uśmiech” na „dziś” | gotowe |
+| Wygląd 0.3: stały pasek zakładek, skale przeciągane 1–10, duże kafelki, krótsze teksty | gotowe |
 
 ## Struktura
 
@@ -29,7 +32,7 @@ App/                      aplikacja SwiftUI
   System/                 blokada Face ID i przypomnienia
 Packages/AboutHerCore/    logika bez interfejsu (daty, cykl, jedzenie, ruch, przypomnienia, dane) + testy
 Tools/food/               źródło bazy produktów i parser posiłków w Pythonie (sprawdzanie bez Swifta)
-UITests/                  zrzuty ekranu każdej zakładki i ekranów „ja”, test zapisu danych
+UITests/                  zrzuty ekranu zakładek, ekranów „ja”, powitania i samouczka, test zapisu danych
 project.yml               definicja projektu dla XcodeGen (.xcodeproj się generuje)
 .github/workflows/        budowanie w chmurze
 ```
@@ -44,7 +47,7 @@ przy każdym `git push` na gałąź `main`. Trzy zadania idą równolegle:
    bez podpisu i pakuje ją do `AboutHer.ipa`. Wersja to `0.1.<numer przebiegu>`.
 3. **Zrzuty ekranu** (`macos-26`): uruchamia każdą zakładkę w symulatorze iPhone'a,
    zapisuje zrzuty jako artefakt `screenshots` i sprawdza, że zaznaczony dzień
-   przetrwa ponowne uruchomienie aplikacji.
+   przetrwa ponowne uruchomienie aplikacji, a powitanie da się przejść do końca.
 
 Gdy wszystkie trzy przejdą, czwarte zadanie publikuje IPA
 w wydaniu **[najnowsza](https://github.com/HiramukaB/congenial-octo-system211934/releases/tag/najnowsza)**.
@@ -106,8 +109,11 @@ ani danych, jeśli to ten sam Apple ID), a potem w AltStore Refresh All.
 - Baza produktów (`FoodDB.json`) jest generowana z `Tools/food/catalog_src.py`, a zmiany parsera
   posiłków idą krok w krok z `Tools/food/meal_port.py` – szczegóły i sprawdzenia przed commitem
   w [Tools/food/README.md](Tools/food/README.md).
+- Zasady wyglądu i komponenty wspólne dla wszystkich ekranów: [App/DesignSystem/DESIGN.md](App/DesignSystem/DESIGN.md).
 - Argumenty uruchomienia:
-  - `-demoData` – fikcyjna historia, nic nie zapisuje;
+  - `-demoData` – fikcyjna historia, nic nie zapisuje (powitanie uznane za ukończone);
+  - `-showOnboarding` – powitanie (pierwsza konfiguracja) na fikcyjnej historii, do zrzutów ekranu;
+  - `-skipOnboarding` – bez powitania, np. w teście zapisu danych na czystym symulatorze;
   - `-startTab calendar` – otwiera wybraną zakładkę (`today`, `calendar`, `food`, `movement`, `me`);
   - `-stillBackground` – nieruchome tło (testy UI: animowane tło nie pozwala aplikacji „odpocząć”,
     przez co automatyczne dotknięcia są wolne i niestabilne).

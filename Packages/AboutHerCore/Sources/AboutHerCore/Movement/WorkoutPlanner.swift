@@ -72,17 +72,17 @@ public struct MovementSuggestion: Sendable, Hashable {
     public enum Focus: Sendable, Hashable, CaseIterable {
         /// Stage 1: showing up matters, not getting tired.
         case habit
-        /// Stage 2 on a period day or a day of low energy.
+        /// Stage 2 on a period day or a day of low energy (1–3).
         case gentle
         /// Stage 2: light training with her own body weight.
         case bodyweight
-        /// Stage 3 on a day she marked low energy: her energy wins over the calendar.
+        /// Stage 3 on a day she marked low energy (1–3): her energy wins over the calendar.
         case lowEnergy
         /// Stage 3 during her period.
         case recovery
         /// Stage 3 in the follicular or ovulatory phase.
         case strength
-        /// Stage 3 on a day she marked high energy.
+        /// Stage 3 on a day she marked high energy (8–10).
         case highEnergy
         /// Stage 3 in the luteal phase, or when the phase isn't known.
         case moderate
@@ -128,32 +128,36 @@ public struct MovementWeek: Sendable, Hashable {
 /// The movement plan, a port of the web version's training: today's suggestion, the offer to
 /// move up a stage and the week.
 public enum WorkoutPlanner {
-    /// Today's suggestion by her stage, the phase of the day and the energy she marked today.
+    /// Today's suggestion by her stage, the phase of the day and the energy she marked today
+    /// (1–10: 1–3 is a low day, 8–10 a high one, `SymptomScale`).
     /// - 1 start: 10–15 min of mobility and gentle yoga, the same all cycle long.
     /// - 2 buduj: 15–20 min; training with her own body weight, gentle on period days and on days
     ///   of low energy.
     /// - 3 pełny rytm: 20–30 min matched to the phase, and the energy she marked today always
     ///   wins over the calendar.
     ///
-    /// A stage outside 1–3 is clamped.
-    public static func suggestion(stage: Int, phase: CyclePhase?, energy: EnergyLevel?) -> MovementSuggestion {
+    /// A stage outside 1–3 and an energy outside 1–10 are clamped.
+    public static func suggestion(stage: Int, phase: CyclePhase?, energy: Int?) -> MovementSuggestion {
         let stages = TrainingProgress.stages
         let stage = Swift.min(Swift.max(stage, stages.lowerBound), stages.upperBound)
+        let level = energy.map(SymptomScale.clamped)
+        let isLowEnergy = level.map { SymptomScale.low.contains($0) } ?? false
+        let isHighEnergy = level.map { SymptomScale.high.contains($0) } ?? false
         if stage == 1 {
             return MovementSuggestion(stage: 1, focus: .habit, kind: .yoga, minutes: 10...15,
                                       video: phase == .menstrual ? .periodYoga : .gentleYoga)
         }
         if stage == 2 {
-            if phase == .menstrual || energy == .low {
+            if phase == .menstrual || isLowEnergy {
                 return MovementSuggestion(stage: 2, focus: .gentle, kind: .yoga, minutes: 15...15, video: .gentleYoga)
             }
             return MovementSuggestion(stage: 2, focus: .bodyweight, kind: .strength, minutes: 20...20, video: .bodyweight)
         }
-        if energy == .low {
+        if isLowEnergy {
             return MovementSuggestion(stage: 3, focus: .lowEnergy, kind: .yoga, minutes: 15...15, video: .gentleYoga)
         }
         let isRising = phase == .follicular || phase == .ovulatory
-        if energy == .high {
+        if isHighEnergy {
             return MovementSuggestion(stage: 3, focus: .highEnergy, kind: isRising ? .intervals : .strength,
                                       minutes: 20...30, video: isRising ? .intervals : .bodyweight)
         }

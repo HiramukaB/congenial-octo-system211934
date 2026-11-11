@@ -1,8 +1,9 @@
 import SwiftUI
 import AboutHerCore
 
-/// "co zjadłaś": tap, type in plain Polish, and it saves itself – no confirm button.
-/// A tap on a logged meal opens it in the same field, in its place, to correct it.
+/// "co zjadłaś": tap "dopisz posiłek", type in plain Polish, and it saves itself – no confirm button.
+/// Each meal is one compact line – her words and its kcal. A tap on a meal opens it in the same
+/// field, in its place, with what I counted above the text; a swipe left deletes it.
 struct MealLogCard: View {
     @Environment(AppStore.self) private var store
     @Environment(\.scenePhase) private var scenePhase
@@ -24,6 +25,8 @@ struct MealLogCard: View {
     @State private var editing: Editing? = nil
     @State private var draft = ""
     @FocusState private var isFocused: Bool
+    /// Counts the meals saved here, for one soft haptic each.
+    @State private var savedMeals = 0
 
     /// A new meal, or a logged one she tapped, and the day it belongs to.
     struct Editing {
@@ -38,37 +41,47 @@ struct MealLogCard: View {
         let entries = store.data.meals(on: day)
         let rows = rowsAround(entries)
         Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(title).sectionTitle()
-                    Spacer()
-                    if editing == nil {
-                        StarButton(label: "dopisz posiłek", prominent: true, action: startNewMeal)
-                    }
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("co zjadłaś", subtitle: day == store.today ? nil : PolishDate.long(day))
+                // On its own line under the heading, where the field for a new meal opens, so the
+                // label always fits on one line. Without meals the empty state offers it instead.
+                if editing == nil && !entries.isEmpty {
+                    StarActionButton("dopisz posiłek", size: .regular, action: startNewMeal)
                 }
                 // The field is one and the same view wherever it opens – above the meals for a new
                 // one, in place of a meal she tapped – so the keyboard stays up from meal to meal.
-                ForEach(rows.before) { entry in
-                    row(entry)
-                }
-                if let editing {
-                    editor(editing)
-                        .id(Self.editorID)
-                        // The keyboard keeps in sight only the line she is typing, so when the preview
-                        // above it gains a line (or the text a new row) the field would slip under it.
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.height
-                        } action: { _ in
-                            keepEditorInSight()
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(rows.before.enumerated()), id: \.element.id) { index, entry in
+                        if index > 0 {
+                            RowDivider()
                         }
-                } else if entries.isEmpty {
-                    emptyState
-                }
-                ForEach(rows.after) { entry in
-                    row(entry)
+                        row(entry)
+                    }
+                    if let editing {
+                        editor(editing)
+                            .padding(.vertical, Spacing.tight)
+                            .id(Self.editorID)
+                            // The keyboard keeps in sight only the line she is typing, so when the
+                            // preview above it gains a line (or the text a new row) the field would
+                            // slip under it.
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.size.height
+                            } action: { _ in
+                                keepEditorInSight()
+                            }
+                    } else if entries.isEmpty {
+                        emptyState
+                    }
+                    ForEach(Array(rows.after.enumerated()), id: \.element.id) { index, entry in
+                        if index > 0 {
+                            RowDivider()
+                        }
+                        row(entry)
+                    }
                 }
             }
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: savedMeals)
         .onChange(of: draft) { oldValue, newValue in
             handleLineBreaks(oldValue: oldValue, newValue: newValue)
         }
@@ -94,20 +107,13 @@ struct MealLogCard: View {
 
     // MARK: - Parts
 
-    private var title: String {
-        day == store.today ? "co zjadłaś" : "co zjadłaś · \(PolishDate.dayMonth(day))"
-    }
-
+    /// No meals yet: a warm line and "dopisz posiłek" under it.
     private var emptyState: some View {
-        Button(action: startNewMeal) {
-            Text(polish: day == store.today
-                 ? "tu pojawi się to, co zjesz – dotknij, żeby dopisać"
-                 : "nic tu jeszcze nie ma – dotknij, żeby dopisać, co zjadłaś")
-                .bodyText()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        EmptyState(title: day == store.today
+                   ? "tu pojawi się to, co dziś zjesz"
+                   : "z tego dnia nie mam zapisanych posiłków",
+                   actionTitle: "dopisz posiłek",
+                   action: startNewMeal)
     }
 
     private func row(_ entry: MealEntry) -> some View {
@@ -120,14 +126,12 @@ struct MealLogCard: View {
     /// The hint and the live preview sit above the text: the keyboard keeps the line she is typing
     /// just in sight and covers whatever is below it.
     private func editor(_ editing: Editing) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.tight) {
             Text(polish: hint(for: editing))
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
-                .fixedSize(horizontal: false, vertical: true)
+                .hintText()
             preview
-            TextField("np. trzy jajka, łyżeczka masła, kromka chleba żytniego", text: $draft, axis: .vertical)
-                .font(.subheadline)
+            TextField("np. dwa jajka, kromka chleba, kawa z mlekiem", text: $draft, axis: .vertical)
+                .font(.body)
                 .foregroundStyle(Palette.text)
                 .focused($isFocused)
                 .submitLabel(.done)
@@ -139,46 +143,44 @@ struct MealLogCard: View {
                     isFocused = true
                 }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Palette.accentBackground.opacity(0.6))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
-        }
+        .fieldBox()
     }
 
-    /// Live preview of what I understand, while she types.
+    /// Live preview of what I understand, while she types: each product, then the whole meal, and a
+    /// hairline that sets her own words apart from it.
     @ViewBuilder private var preview: some View {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count > Self.previewLimit {
             Text(polish: "tak długi tekst policzę dopiero po zapisaniu")
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
+                .hintText()
+            FieldDivider()
         } else if !trimmed.isEmpty {
             let parsed = store.mealParser.parse(trimmed)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Spacing.hairline) {
                 ForEach(Array(parsed.items.enumerated()), id: \.offset) { _, item in
                     Text(FoodFormat.itemLine(item))
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(Palette.text2)
+                }
+                if !parsed.items.isEmpty {
+                    Text(verbatim: "razem: \(FoodFormat.macrosLine(parsed.totals))")
+                        .font(.footnote.weight(.medium).monospacedDigit())
+                        .foregroundStyle(Palette.text)
+                        .padding(.top, Spacing.hairline)
                 }
                 if !parsed.unknown.isEmpty {
                     Text("nie znam jeszcze: \(parsed.unknown.joined(separator: ", "))")
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(Palette.muted)
                 }
                 if parsed.items.isEmpty && parsed.unknown.isEmpty {
                     // So far only the meal, a time or who she ate with ("obiad:", "8:30").
                     Text(polish: "nie widzę tu jeszcze nic do policzenia")
-                        .font(.caption)
-                        .foregroundStyle(Palette.muted)
+                        .hintText()
                 }
             }
             .accessibilityElement(children: .combine)
+            FieldDivider()
         }
     }
 
@@ -188,7 +190,7 @@ struct MealLogCard: View {
             return "zapiszę to, gdy schowasz klawiaturę"
         }
         if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "pusty tekst niczego nie zmieni – posiłek usuniesz, przesuwając go w lewo"
+            return "pusty tekst nic nie zmieni – posiłek usuniesz, przesuwając go w lewo"
         }
         return "zapiszę poprawkę, gdy schowasz klawiaturę"
     }
@@ -253,14 +255,22 @@ struct MealLogCard: View {
         // The date can move back (a time zone to the west): a new meal then goes to the day it is now.
         let newMealDay = Swift.min(editing.day, store.today)
         guard let id = editing.mealID else {
-            return store.logMeal(trimmed, on: newMealDay)
+            return counted(store.logMeal(trimmed, on: newMealDay))
         }
         guard trimmed != editing.originalText else { return true }
         if store.data.meals(on: editing.day).contains(where: { $0.id == id }) {
-            return store.replaceMeal(id, text: trimmed, on: editing.day)
+            return counted(store.replaceMeal(id, text: trimmed, on: editing.day))
         }
         // The meal isn't there any more: keep her words as a new meal rather than lose them.
-        return store.logMeal(trimmed, on: newMealDay)
+        return counted(store.logMeal(trimmed, on: newMealDay))
+    }
+
+    /// Passes the store's answer on, with a soft haptic when the meal was saved.
+    private func counted(_ saved: Bool) -> Bool {
+        if saved {
+            savedMeals += 1
+        }
+        return saved
     }
 
     /// The return key of a multi-line field inserts a line break: a single one means "gotowe".
@@ -306,9 +316,11 @@ struct MealLogCard: View {
     }
 }
 
-/// One logged meal: what she wrote, what I counted, its values, and links to the products I don't
-/// know yet or that she taught me.
+/// One logged meal as a compact row: her words on one line and the kcal I counted; the whole text
+/// and what I counted open on a tap. Under it – only when they are there – the products I don't
+/// know yet and her own products, each a link.
 struct MealRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let entry: MealEntry
     /// Her own products in this meal, which she can open to correct.
     let ownFoods: [FoodItem]
@@ -319,40 +331,36 @@ struct MealRow: View {
         let unknown = MealRow.unique(entry.unknown)
         let ownLabel = ownFoods.count == 1 ? "Twój produkt:" : "Twoje produkty:"
         let flow = FlowLayout()
-        VStack(alignment: .leading, spacing: 4) {
-            VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: Spacing.hairline) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.item) {
                 Text(entry.text)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.text)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .rowTitle()
+                    // One line, so the day reads at a glance; at the largest text sizes a few,
+                    // so her words stay readable.
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if !entry.items.isEmpty {
-                    // What was counted, so a food I missed or misread shows at a glance.
-                    Text(MealRow.countedLine(entry.items))
-                        .font(.caption)
-                        .foregroundStyle(Palette.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if entry.items.isEmpty && entry.unknown.isEmpty {
-                    // Only the meal, a time or who she ate with ("obiad", "8:30"): nothing was counted.
-                    Text(polish: "nic tu nie policzyłam – dotknij, żeby dopisać, co zjadłaś")
-                        .font(.caption)
-                        .foregroundStyle(Palette.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text(FoodFormat.macrosLine(entry.totals))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(Palette.muted)
+                    Text(verbatim: "\(FoodFormat.whole(entry.totals.kcal)) kcal")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(Palette.text2)
+                        .fixedSize()
                 }
             }
             .accessibilityElement(children: .combine)
+            if entry.items.isEmpty && entry.unknown.isEmpty {
+                // Only the meal, a time or who she ate with ("obiad", "8:30"): nothing was counted.
+                Text(polish: "nic tu nie policzyłam")
+                    .rowDetail()
+            }
             if !unknown.isEmpty {
                 flow {
                     Text("nie znam jeszcze:")
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(Palette.muted)
                     ForEach(unknown, id: \.self) { name in
                         Button(name) { onTeach(name) }
-                            .buttonStyle(LinkButtonStyle(font: .caption.weight(.medium)))
+                            .buttonStyle(LinkButtonStyle(font: .footnote.weight(.medium)))
                             .accessibilityHint("dopisz wartości tego produktu")
                     }
                 }
@@ -360,53 +368,34 @@ struct MealRow: View {
             if !ownFoods.isEmpty {
                 flow {
                     Text(ownLabel)
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(Palette.muted)
                     ForEach(ownFoods) { food in
                         Button(food.name) { onEditFood(food) }
-                            .buttonStyle(LinkButtonStyle(font: .caption.weight(.medium)))
+                            .buttonStyle(LinkButtonStyle(font: .footnote.weight(.medium)))
                             .accessibilityHint("popraw wartości tego produktu")
                     }
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, Spacing.item)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// What was counted, in short: "jajko × 3 · chleb żytni × 2 · masło · łosoś 150 g".
-    static func countedLine(_ items: [ParsedItem]) -> String {
-        items.map { item in
-            var part = item.foodName
-            if item.unit == nil {
-                part += " \(FoodFormat.whole(item.grams)) g"
-            } else if abs(item.amount - 1) > 0.001 {
-                part += " × " + amountText(item.amount)
-            }
-            if item.isGuess {
-                part += " (?)"
-            }
-            return part
-        }
-        .joined(separator: " · ")
-    }
-
-    /// "3", "1,5", "0,25".
-    private static func amountText(_ value: Double) -> String {
-        let decimals: Int
-        if abs(value - value.rounded()) < 0.001 {
-            decimals = 0
-        } else if abs(value * 10 - (value * 10).rounded()) < 0.01 {
-            decimals = 1
-        } else {
-            decimals = 2
-        }
-        return FoodFormat.number(value, decimals: decimals)
     }
 
     /// Each name once, in the order she wrote them.
     private static func unique(_ names: [String]) -> [String] {
         var seen = Set<String>()
         return names.filter { seen.insert($0).inserted }
+    }
+}
+
+/// A hairline inside the open field, between what I counted and her words. `RowDivider` would
+/// vanish on the field's warm background, so this one takes a touch of the accent.
+private struct FieldDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Palette.accent.opacity(0.18))
+            .frame(height: 1)
+            .accessibilityHidden(true)
     }
 }

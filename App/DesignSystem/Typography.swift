@@ -32,37 +32,71 @@ struct DisplayFont: ViewModifier {
     }
 }
 
+// The text roles of the app (DESIGN.md, "Typography"). A screen uses these instead of picking
+// fonts and colours itself, so every screen reads the same way.
 extension View {
     func displayFont(_ size: CGFloat, weight: Font.Weight = .regular, italic: Bool = false,
                      relativeTo style: Font.TextStyle) -> some View {
         modifier(DisplayFont(size, weight: weight, italic: italic, relativeTo: style))
     }
 
-    /// Small uppercase label above a value ("DZIEŃ CYKLU").
-    func eyebrow() -> some View {
-        font(.caption.weight(.medium))
-            .textCase(.uppercase)
-            .tracking(0.8)
-            .foregroundStyle(Palette.muted)
-    }
-
-    /// Lowercase serif heading of a card.
-    func sectionTitle() -> some View {
-        displayFont(17, weight: .medium, relativeTo: .headline)
-            .foregroundStyle(Palette.accent)
-    }
-
-    /// Heading of a whole tab.
+    /// Heading of a whole screen: serif, 30 pt, lowercase ("jedzenie").
     func screenTitle() -> some View {
         displayFont(30, weight: .medium, relativeTo: .title)
             .foregroundStyle(Palette.text)
     }
 
-    /// Regular running text inside cards.
+    /// Lowercase serif heading of a card, in the accent ("co zjadłaś"). Prefer `SectionHeader`.
+    func sectionTitle() -> some View {
+        displayFont(19, weight: .medium, relativeTo: .title3)
+            .foregroundStyle(Palette.accent)
+    }
+
+    /// The one big number of a card (the cycle day): serif, 52 pt.
+    func bigNumber() -> some View {
+        displayFont(52, relativeTo: .largeTitle)
+            .foregroundStyle(Palette.text)
+    }
+
+    /// Running text she reads: body size, the softer text colour, wraps instead of truncating.
     func bodyText() -> some View {
-        font(.subheadline)
+        font(.body)
             .foregroundStyle(Palette.text2)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The main line of a row or a tile: her meal, a workout, a joke.
+    func rowTitle() -> some View {
+        font(.body)
+            .foregroundStyle(Palette.text)
+    }
+
+    /// The small line under a row's title: a date, "ok. 114 kcal", a source.
+    func rowDetail() -> some View {
+        font(.subheadline)
+            .foregroundStyle(Palette.muted)
+    }
+
+    /// A value she reads at a glance: "1075 / 1748 kcal", "4 / 8 szklanek".
+    func valueText() -> some View {
+        font(.body.monospacedDigit())
+            .foregroundStyle(Palette.text)
+    }
+
+    /// A short hint or note. At most one per card, and only when it helps her act – longer
+    /// explanations go behind `MoreInfo`.
+    func hintText() -> some View {
+        font(.footnote)
+            .foregroundStyle(Palette.muted)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Small uppercase label above a value ("DZIEŃ CYKLU"). Use sparingly.
+    func eyebrow() -> some View {
+        font(.caption.weight(.medium))
+            .textCase(.uppercase)
+            .tracking(0.8)
+            .foregroundStyle(Palette.muted)
     }
 }
 

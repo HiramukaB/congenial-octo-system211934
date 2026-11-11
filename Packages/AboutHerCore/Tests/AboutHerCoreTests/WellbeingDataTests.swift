@@ -61,8 +61,13 @@ struct WellbeingDataTests {
         let reminders = appData.settings.reminders
         #expect([reminders.water, reminders.weighIn, reminders.periodSoon, reminders.dinner, reminders.letter]
                     .allSatisfy { !$0.isOn })
+        // Schema 4: no name, the welcome not finished yet, no humor.
+        #expect(appData.settings.onboarding == OnboardingState())
+        #expect(!appData.settings.onboarding.isCompleted)
+        #expect(appData.settings.onboarding.name == nil)
+        #expect(appData.humor.isEmpty)
 
-        // Saved again, it is a schema 3 file that reads back the same.
+        // Saved again, it is a file of the current schema that reads back the same.
         let written = try AppDataCoding.encode(appData)
         #expect(!AppDataCoding.isFromNewerVersion(written))
         var current = appData
@@ -73,7 +78,7 @@ struct WellbeingDataTests {
     @Test func everyNewFieldRoundTrips() throws {
         let wednesday = LocalDate(year: 2026, month: 3, day: 4)
         var appData = AppData()
-        appData.setSymptoms(SymptomDay(energy: .low, mood: .neutral, sleep: .good, appetite: .big,
+        appData.setSymptoms(SymptomDay(energy: 2, mood: 5, sleep: 8, appetite: 9,
                                        flags: [.headache, .bloating]), on: wednesday)
         appData.setSymptoms(SymptomDay(flags: [.cramps]), on: wednesday.adding(days: -1))
         appData.setIntention("dziś idę swoim tempem", on: wednesday)
@@ -114,7 +119,8 @@ struct WellbeingDataTests {
     }
 
     @Test func filesFromANewerVersionStayReadOnly() {
-        #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":4,"periodDays":[]}"#.utf8)))
+        let newer = AppData.currentSchemaVersion + 1
+        #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":\#(newer),"periodDays":[]}"#.utf8)))
         #expect(AppDataCoding.isFromNewerVersion(Data(#"{"schemaVersion":3,"periodDays":[],"sleepLog":{}}"#.utf8)))
         // A value only a newer version knows, deep inside: the file can't be decoded, so it stays read-only.
         #expect(AppDataCoding.isFromNewerVersion(
@@ -130,7 +136,7 @@ struct WellbeingDataTests {
     @Test func emptyDaysAreNotKept() {
         let day = LocalDate(year: 2026, month: 3, day: 2)
         var appData = AppData()
-        appData.setSymptoms(SymptomDay(mood: .good), on: day)
+        appData.setSymptoms(SymptomDay(mood: 7), on: day)
         #expect(appData.symptoms[day] != nil)
         var cleared = appData.symptoms(on: day)
         cleared.mood = nil

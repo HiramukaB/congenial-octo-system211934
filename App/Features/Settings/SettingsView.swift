@@ -2,11 +2,12 @@ import SwiftUI
 import UIKit
 import AboutHerCore
 
-/// "ustawienia", opened from "ja": her reminders and the Face ID lock.
+/// "ustawienia", opened from "ja": her reminders, the Face ID lock and the short guide again.
 ///
-/// Every reminder is off until she turns it on with its star; the first one she turns on asks
-/// iOS whether the app may send notifications. A tap on a time opens a wheel in place, each turn
-/// of it is saved at once, and another tap closes it – there is nothing to confirm.
+/// Each reminder is one row: its name, its time and a switch. Every reminder is off until she
+/// turns it on; the first one she turns on asks iOS whether the app may send notifications. A tap
+/// on the name or the time opens a wheel in place with a line about when it comes; each turn of
+/// the wheel is saved at once, and another tap closes it – there is nothing to confirm.
 struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.scenePhase) private var scenePhase
@@ -18,20 +19,27 @@ struct SettingsView: View {
     @State private var openKind: ReminderKind?
     /// The time on the open wheel.
     @State private var wheelTime = Date()
-    /// The question about notifications is on screen.
-    @State private var isAskingPermission = false
+    /// The reminder she is turning on while iOS asks about notifications; its switch shows on.
+    @State private var askingKind: ReminderKind?
     @State private var isTurningLockOn = false
     /// A gentle line under the lock when it couldn't be turned on.
     @State private var lockNote: String?
+    /// The short guide (`TutorialView`) is open.
+    @State private var isShowingTutorial = false
 
     var body: some View {
         let settings = store.data.settings
         Screen {
-            Text("ustawienia").screenTitle()
+            ScreenHeader(title: "ustawienia")
             remindersCard(settings.reminders)
             lockCard(isOn: settings.isLockEnabled)
+            tutorialCard
         }
         .navigationBarTitleDisplayMode(.inline)
+        // Slot: owner A builds the guide; it closes itself.
+        .fullScreenCover(isPresented: $isShowingTutorial) {
+            TutorialView()
+        }
         .task {
             permission = await ReminderPermission.current()
         }
@@ -55,100 +63,133 @@ struct SettingsView: View {
 
     private func remindersCard(_ reminders: ReminderSettings) -> some View {
         Card {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("przypomnienia").sectionTitle()
-                Text(polish: "przypomnę Ci tylko o tym, co sama włączysz gwiazdką, a gdy pozwolisz na powiadomienia – także o dniu, w którym otworzy się Twój list. Dotknij godziny, żeby ją zmienić")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("przypomnienia", subtitle: "tylko te, które sama włączysz")
                 if permission == .denied && reminders.isAnyOn {
                     deniedNote
                 }
-                ForEach(ReminderKind.allCases, id: \.self) { kind in
-                    reminderRow(kind, reminders: reminders)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(ReminderKind.allCases, id: \.self) { kind in
+                        if kind != ReminderKind.allCases.first {
+                            RowDivider()
+                        }
+                        reminderRow(kind, reminders: reminders)
+                    }
                 }
-                Text(polish: "planuję je na tydzień naprzód i odświeżam, gdy zaglądasz do aplikacji")
-                    .font(.caption)
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+                MoreInfo("jak przypominam?",
+                         text: "planuję przypomnienia na tydzień naprzód i odświeżam je, gdy zaglądasz do aplikacji. Na ekranie blokady piszę ogólnie, bez Twoich danych")
             }
         }
     }
 
+    /// One reminder: name and time on the left (a tap opens the time), a switch on the right.
     private func reminderRow(_ kind: ReminderKind, reminders: ReminderSettings) -> some View {
         let setting = reminders[kind]
-        let timeLabel = kind.timeLabel(in: reminders)
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 6) {
-                SettingsStarToggle(label: "przypomnienie: \(kind.title)", isOn: setting.isOn) {
-                    toggle(kind)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(kind.title)
-                        .font(.subheadline)
-                        .foregroundStyle(setting.isOn ? Palette.text : Palette.text2)
-                    Text(polish: kind.detail(in: reminders))
-                        .font(.footnote)
-                        .foregroundStyle(Palette.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
+        let isOpen = openKind == kind
+        return VStack(alignment: .leading, spacing: Spacing.item) {
+            HStack(alignment: .center, spacing: Spacing.item) {
                 Button {
                     openOrClose(kind)
                 } label: {
-                    Text(timeLabel)
+                    // The name first; the time smaller under it, in the accent while it is on.
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(kind.title)
+                            .rowTitle()
+                        HStack(spacing: Spacing.hairline) {
+                            Text(kind.whenLabel(in: reminders))
+                                .font(.subheadline.monospacedDigit())
+                                .fixedSize(horizontal: false, vertical: true)
+                            Image(systemName: "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .rotationEffect(.degrees(isOpen ? 180 : 0))
+                                .accessibilityHidden(true)
+                        }
+                        .foregroundStyle(setting.isOn ? Palette.accent : Palette.text2)
+                    }
+                    .padding(.vertical, Spacing.tight)
+                    .frame(maxWidth: .infinity, minHeight: TapSize.large, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(LinkButtonStyle(font: .subheadline.monospacedDigit()))
-                .accessibilityLabel(Text("zmień godzinę: \(kind.title), \(timeLabel)"))
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("\(kind.title), \(kind.spokenWhen(in: reminders))"))
+                .accessibilityHint(Text(isOpen ? "zwija godzinę" : "zmienia godzinę"))
+                SettingsSwitch(label: "przypomnienie: \(kind.title)", isOn: setting.isOn || askingKind == kind) {
+                    toggle(kind)
+                }
             }
-            if openKind == kind {
+            if isOpen {
                 timeEditor(kind, reminders: reminders)
+                    .padding(.bottom, Spacing.item)
+                    .transition(.opacity)
             }
         }
     }
 
-    /// The wheel, and for the weigh-in the day of the week above it.
+    /// The wheel – for the weigh-in with its day above it – and when the reminder comes.
     private func timeEditor(_ kind: ReminderKind, reminders: ReminderSettings) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.item) {
             if kind == .weighIn {
-                weekdayChips(selected: reminders.weighInWeekday)
+                weekdayMenu(selected: reminders.weighInWeekday)
             }
             DatePicker("godzina", selection: $wheelTime, displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel)
                 .labelsHidden()
                 .environment(\.locale, Locale(identifier: "pl_PL"))
                 .frame(maxWidth: .infinity)
+            Text(polish: kind.detail(in: reminders))
+                .hintText()
         }
     }
 
-    private func weekdayChips(selected: Int) -> some View {
-        let flow = FlowLayout(spacing: 6, lineSpacing: 6)
-        return flow {
+    /// The day of the weigh-in: a large button that opens the seven days.
+    private func weekdayMenu(selected: Int) -> some View {
+        Menu {
             ForEach(1...7, id: \.self) { weekday in
-                SettingsWeekdayChip(label: SettingsWords.weekdayShort(weekday),
-                                    spoken: SettingsWords.weekdayName(weekday),
-                                    isOn: weekday == selected) {
-                    guard weekday != selected else { return }
-                    store.updateSettings { $0.reminders.weighInWeekday = weekday }
+                Button {
+                    setWeighInDay(weekday)
+                } label: {
+                    if weekday == selected {
+                        Label(SettingsWords.weekdayName(weekday), systemImage: "checkmark")
+                    } else {
+                        Text(SettingsWords.weekdayName(weekday))
+                    }
                 }
             }
+        } label: {
+            HStack(spacing: Spacing.tight) {
+                Text(SettingsWords.weekdayPhrase(selected))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .accessibilityHidden(true)
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Palette.text)
+            .padding(.horizontal, Spacing.cardGap)
+            .frame(minHeight: TapSize.minimum)
+            .background {
+                Capsule()
+                    .fill(Palette.accentBackground)
+            }
+            .overlay {
+                Capsule()
+                    .strokeBorder(Palette.accent.opacity(0.3), lineWidth: 1)
+            }
+            .contentShape(Capsule())
         }
-        .sensoryFeedback(.selection, trigger: selected)
+        .accessibilityLabel(Text("dzień ważenia: \(SettingsWords.weekdayName(selected))"))
     }
 
     private var deniedNote: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Text(polish: "powiadomienia od about her są wyłączone w ustawieniach telefonu, więc moje przypomnienia do Ciebie nie dotrą. Dotknij gwiazdki – otworzę te ustawienia")
+        VStack(alignment: .leading, spacing: Spacing.item) {
+            Text(polish: "powiadomienia są wyłączone w telefonie – nie mogę Ci przypomnieć")
                 .font(.footnote)
                 .foregroundStyle(Palette.accent)
                 .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 4)
-            StarButton(label: "otwórz ustawienia powiadomień", prominent: true) {
-                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
-                    openURL(url)
-                }
+            StarActionButton("otwórz ustawienia telefonu", size: .regular) {
+                openNotificationSettings()
             }
         }
+        .padding(.vertical, Spacing.hairline)
     }
 
     /// Turns a reminder off, or on. The first one she turns on asks iOS for permission; once she
@@ -158,8 +199,8 @@ struct SettingsView: View {
             store.updateSettings { $0.reminders[kind].isOn = false }
             return
         }
-        guard !isAskingPermission else { return }
-        isAskingPermission = true
+        guard askingKind == nil else { return }
+        askingKind = kind
         Task {
             var allowedJustNow = false
             if await ReminderPermission.current() == .notAsked {
@@ -173,12 +214,12 @@ struct SettingsView: View {
                 }
             }
             permission = await ReminderPermission.current()
-            isAskingPermission = false
+            askingKind = nil
         }
     }
 
     private func openOrClose(_ kind: ReminderKind) {
-        withAnimation(.snappy) {
+        withAnimation(.snappy(duration: 0.25)) {
             if openKind == kind {
                 openKind = nil
             } else {
@@ -188,33 +229,46 @@ struct SettingsView: View {
         }
     }
 
+    private func setWeighInDay(_ weekday: Int) {
+        guard weekday != store.data.settings.reminders.weighInWeekday else { return }
+        store.updateSettings { $0.reminders.weighInWeekday = weekday }
+    }
+
+    private func openNotificationSettings() {
+        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+            openURL(url)
+        }
+    }
+
     // MARK: - Lock
 
     private func lockCard(isOn: Bool) -> some View {
         Card {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("blokada").sectionTitle()
-                HStack(alignment: .center, spacing: 6) {
-                    SettingsStarToggle(label: "blokada Face ID", isOn: isOn) {
-                        toggleLock(isOn: isOn)
-                    }
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("blokada")
+                // Built like a reminder row: a name, one line under it, the switch.
+                HStack(alignment: .center, spacing: Spacing.item) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Face ID przy otwieraniu")
-                            .font(.subheadline)
-                            .foregroundStyle(isOn ? Palette.text : Palette.text2)
-                        Text(polish: "zanim pokażę Twoje dane, poproszę o Face ID albo kod telefonu, a w przełączaniu aplikacji zakryję ekran gwiazdką")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.muted)
+                        Text("Face ID")
+                            .rowTitle()
+                        Text(polish: "przy otwieraniu aplikacji")
+                            .rowDetail()
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    SettingsSwitch(label: "blokada Face ID", isOn: isOn || isTurningLockOn) {
+                        toggleLock(isOn: isOn)
+                    }
                 }
+                .frame(minHeight: TapSize.large)
                 if let lockNote {
                     Text(polish: lockNote)
                         .font(.footnote)
                         .foregroundStyle(Palette.accent)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                MoreInfo("jak działa?",
+                         text: "zanim pokażę Twoje dane, poproszę o Face ID albo kod telefonu. W przełączaniu aplikacji zakryję ekran gwiazdką")
             }
         }
     }
@@ -233,10 +287,30 @@ struct SettingsView: View {
             isTurningLockOn = false
             switch result {
             case .noPasscode:
-                lockNote = "ten telefon nie ma kodu, więc blokady nie włączę. Gdy ustawisz kod w ustawieniach telefonu, wróć tu – włączę ją jednym dotknięciem"
+                withAnimation(.smooth) {
+                    lockNote = "blokady bez kodu nie włączę – ustaw kod w ustawieniach telefonu i wróć tu"
+                }
             case .on, .notConfirmed:
                 break
             }
+        }
+    }
+
+    // MARK: - Guide
+
+    /// "samouczek": the short guide to the app, once more. (Slot from the foundation round: the
+    /// row and the cover it opens stay.)
+    private var tutorialCard: some View {
+        Card(padding: 0) {
+            Button {
+                isShowingTutorial = true
+            } label: {
+                MePlaceRow(title: "samouczek", detail: "jak korzystać z aplikacji", symbol: "lightbulb")
+            }
+            .buttonStyle(MePlacePressStyle())
+            .accessibilityLabel(Text("samouczek, jak korzystać z aplikacji"))
+            .padding(.horizontal, Spacing.card)
+            .padding(.vertical, Spacing.hairline)
         }
     }
 }
@@ -259,27 +333,50 @@ extension ReminderKind {
         return self == .weighIn ? "\(SettingsWords.weekdayShort(reminders.weighInWeekday)) \(time)" : time
     }
 
-    /// When it comes and when I skip it, in one line.
-    func detail(in reminders: ReminderSettings) -> String {
-        let time = reminders[self].time.text
+    /// When it comes, as the row shows it: every water time ("11:00, 15:00 i 19:00"), the
+    /// weigh-in with its day ("pon 8:00"), otherwise the time.
+    func whenLabel(in reminders: ReminderSettings) -> String {
         switch self {
         case .water:
-            let times = SettingsWords.list(reminders.waterTimes.map(\.text))
-            return "o \(times) · gdy wypijesz \(PolishPlural.glasses(WaterDay.goalGlasses)), resztę dnia pominę"
+            SettingsWords.list(reminders.waterTimes.map(\.text))
+        default:
+            timeLabel(in: reminders)
+        }
+    }
+
+    /// `whenLabel` for VoiceOver: "w poniedziałek o 8:00".
+    func spokenWhen(in reminders: ReminderSettings) -> String {
+        switch self {
+        case .water:
+            "o \(SettingsWords.list(reminders.waterTimes.map(\.text)))"
         case .weighIn:
-            return "raz w tygodniu, \(SettingsWords.weekdayPhrase(reminders.weighInWeekday)) o \(time) · nie przypomnę, jeśli już się zważyłaś"
+            "\(SettingsWords.weekdayPhrase(reminders.weighInWeekday)) o \(reminders[self].time.text)"
+        default:
+            "o \(reminders[self].time.text)"
+        }
+    }
+
+    /// When it comes and when I skip it, in one short line (the time is on the row already).
+    func detail(in reminders: ReminderSettings) -> String {
+        switch self {
+        case .water:
+            "gdy wypijesz \(PolishPlural.glasses(WaterDay.goalGlasses)), resztę dnia pominę"
+        case .weighIn:
+            "raz w tygodniu · nie przypomnę, jeśli już się zważyłaś"
         case .periodSoon:
-            return "o \(time), dwa dni przed spodziewanym okresem · na ekranie blokady napiszę tylko, że szykuje się nowy rozdział"
+            "dwa dni przed spodziewanym okresem · dyskretnie, bez słowa o nim"
         case .dinner:
-            return "o \(time) · nie zapytam, jeśli po \(ReminderPlan.eveningFromHour):00 dopisałaś już posiłek"
+            "nie zapytam, jeśli po \(ReminderPlan.eveningFromHour):00 dopisałaś już posiłek"
         case .letter:
-            return "o \(time) w dniu, w którym otwiera się Twój list · bez słowa z jego treści"
+            "w dniu, w którym otwiera się Twój list · bez słowa z jego treści"
         }
     }
 }
 
-/// A star that is filled while its setting is on and only outlined while it is off.
-private struct SettingsStarToggle: View {
+/// A clear on/off switch, larger than the system one: a capsule that fills with the accent and a
+/// knob that slides across – light on the dark track, dark with a small star on the champagne
+/// one, so the two states never look alike. A tick on every change.
+private struct SettingsSwitch: View {
     let label: String
     let isOn: Bool
     let action: () -> Void
@@ -290,58 +387,36 @@ private struct SettingsStarToggle: View {
             taps += 1
             action()
         } label: {
-            ZStack {
-                OrganicStar()
-                    .fill(isOn ? Palette.accent : Color.clear)
-                OrganicStar()
-                    .stroke(isOn ? Palette.accent : Palette.accentDim, lineWidth: 1.2)
-            }
-            .frame(width: 20, height: 20)
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(StarPressStyle())
-        .animation(.snappy(duration: 0.2), value: isOn)
-        .accessibilityLabel(Text(label))
-        .accessibilityValue(Text(isOn ? "włączone" : "wyłączone"))
-        .sensoryFeedback(.selection, trigger: taps)
-    }
-}
-
-/// A day of the week for the weigh-in, in the soft capsule the app uses for choices.
-private struct SettingsWeekdayChip: View {
-    let label: String
-    let spoken: String
-    let isOn: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                OrganicStar()
-                    .fill(isOn ? Palette.accent : Palette.accentDim.opacity(0.35))
-                    .frame(width: 9, height: 9)
-                Text(label)
-                    .font(.footnote)
-                    .foregroundStyle(isOn ? Palette.text : Palette.text2)
-            }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
-            .background {
-                Capsule().fill(isOn ? Palette.accent.opacity(0.2) : Color.white.opacity(0.05))
-            }
-            .overlay {
-                Capsule().strokeBorder(isOn ? Palette.accent.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 1)
-            }
-            // About 44 pt to tap, without changing the layout.
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-            .padding(.vertical, -6)
+            Capsule()
+                .fill(isOn ? Palette.accent : Color.white.opacity(0.1))
+                .overlay {
+                    Capsule()
+                        .strokeBorder(isOn ? Color.clear : Color.white.opacity(0.14), lineWidth: 1)
+                }
+                .frame(width: 56, height: 34)
+                .overlay(alignment: isOn ? .trailing : .leading) {
+                    Circle()
+                        .fill(isOn ? Palette.onAccent : Palette.text2)
+                        .overlay {
+                            if isOn {
+                                OrganicStar()
+                                    .fill(Palette.accent)
+                                    .padding(7)
+                            }
+                        }
+                        .frame(width: 28, height: 28)
+                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                        .padding(3)
+                }
+                .frame(minWidth: TapSize.minimum, minHeight: TapSize.minimum)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .animation(.snappy(duration: 0.2), value: isOn)
-        .accessibilityLabel(Text(spoken))
-        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .sensoryFeedback(.selection, trigger: taps)
+        .accessibilityLabel(Text(label))
+        .accessibilityValue(Text(isOn ? "włączone" : "wyłączone"))
+        .accessibilityAddTraits(.isToggle)
     }
 }
 

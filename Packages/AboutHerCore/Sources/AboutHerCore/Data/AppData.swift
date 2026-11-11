@@ -9,6 +9,9 @@ public struct AppData: Codable, Sendable, Equatable {
     /// 3: symptoms; the inner self (intentions, small wins, manifest, weekly reflections, letters,
     ///    photo metadata); notes from "chwila dla siebie"; workouts and the training stage;
     ///    settings (reminders, the lock).
+    /// 4: the symptom scales as numbers 1–10 (the words older files stored are read and mapped,
+    ///    see `SymptomLegacyWords`); her name, the welcome steps and the guide
+    ///    (`settings.onboarding`); humor.
     ///
     /// Raise it for every new stored field and every new enum case, nested ones included (in a
     /// meal, a product, a portion, the profile, the targets, a symptom day, a workout, the
@@ -17,7 +20,7 @@ public struct AppData: Codable, Sendable, Equatable {
     /// (`AppDataCoding.isFromNewerVersion`); a nested field it doesn't know it would drop without
     /// a word on its next save. Never remove or rename a field or a case either: older files
     /// would then read as coming from a newer version and stay read-only.
-    public static let currentSchemaVersion = 3
+    public static let currentSchemaVersion = 4
 
     public var schemaVersion: Int
     /// Days she marked as bleeding.
@@ -54,8 +57,10 @@ public struct AppData: Codable, Sendable, Equatable {
     public var workouts: [LocalDate: [Workout]]
     /// The stage of her movement plan.
     public var training: TrainingProgress
-    /// Reminders and the lock.
+    /// Reminders, the lock, her name and the welcome steps.
     public var settings: AppSettings
+    /// Jokes and quotes she keeps to cheer herself up, in the order she added them.
+    public var humor: [HumorItem]
 
     public init(periodDays: Set<LocalDate> = [],
                 meals: [LocalDate: [MealEntry]] = [:],
@@ -74,7 +79,8 @@ public struct AppData: Codable, Sendable, Equatable {
                 moments: [MomentNote] = [],
                 workouts: [LocalDate: [Workout]] = [:],
                 training: TrainingProgress = TrainingProgress(),
-                settings: AppSettings = AppSettings()) {
+                settings: AppSettings = AppSettings(),
+                humor: [HumorItem] = []) {
         self.schemaVersion = AppData.currentSchemaVersion
         self.periodDays = periodDays
         self.meals = meals
@@ -94,6 +100,7 @@ public struct AppData: Codable, Sendable, Equatable {
         self.workouts = workouts
         self.training = training
         self.settings = settings
+        self.humor = humor
     }
 
     public mutating func togglePeriodDay(_ date: LocalDate) {
@@ -197,6 +204,8 @@ public struct AppData: Codable, Sendable, Equatable {
         case schemaVersion, periodDays, meals, userFoods, water, weights, nutritionProfile, targetsSetting
         // Schema 3
         case symptoms, intentions, wins, manifest, reflections, letters, photos, moments, workouts, training, settings
+        // Schema 4
+        case humor
     }
 
     public init(from decoder: any Decoder) throws {
@@ -220,6 +229,7 @@ public struct AppData: Codable, Sendable, Equatable {
         workouts = try container.decodeIfPresent([LocalDate: [Workout]].self, forKey: .workouts) ?? [:]
         training = try container.decodeIfPresent(TrainingProgress.self, forKey: .training) ?? TrainingProgress()
         settings = try container.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
+        humor = try container.decodeIfPresent([HumorItem].self, forKey: .humor) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -245,6 +255,7 @@ public struct AppData: Codable, Sendable, Equatable {
         try container.encode(workouts, forKey: .workouts)
         try container.encode(training, forKey: .training)
         try container.encode(settings, forKey: .settings)
+        try container.encode(humor, forKey: .humor)
     }
 }
 

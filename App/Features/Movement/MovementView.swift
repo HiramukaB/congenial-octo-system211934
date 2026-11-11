@@ -1,46 +1,40 @@
 import SwiftUI
 import AboutHerCore
 
-/// "ruch": today's suggestion by her stage, the cycle phase and the energy she marked today, the
-/// movement she logged this week, and the stage of her plan – raised only when she says yes.
+/// "ruch": one suggestion for today, her movement this week and in the last few days, and the
+/// stage of her plan – raised only when she says yes.
 struct MovementView: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
         let today = store.today
         Screen(tint: store.cycle.phase(on: today, today: today)?.phase.tint) {
-            Text("ruch").screenTitle()
-            if let offer = store.trainingStageOffer {
-                MovementOfferCard(stage: offer)
-            }
+            ScreenHeader(title: "ruch")
             MovementSuggestionCard(suggestion: store.movementSuggestion)
             WorkoutLogCard()
             MovementStageCard()
-            Text(polish: store.isMovementWeightAssumed
-                 ? "kcal z ruchu to szacunek. Liczę je dla wagi 65 kg, dopóki nie zapiszesz swojej w zakładce jedzenie"
-                 : "kcal z ruchu to szacunek, nie dokładny pomiar")
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
         }
     }
 }
 
-/// "na dziś": what to do, for how long and why, the video to follow, and a star to log it as done.
+/// "na dziś", the card the screen is about: what to do and for how long – by her stage, the phase
+/// and the energy she marked today – the video to follow, and "zrobione" to log it.
 struct MovementSuggestionCard: View {
     @Environment(AppStore.self) private var store
     let suggestion: MovementSuggestion
 
     var body: some View {
-        let today = store.today
-        let isDone = store.data.workouts(on: today).contains { $0.kind == suggestion.kind }
-        Card {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("na dziś").sectionTitle()
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(suggestion.title) · \(MovementFormat.minutes(suggestion.minutes))")
-                        .font(.headline)
+        let isDone = store.data.workouts(on: store.today).contains { $0.kind == suggestion.kind }
+        Card(style: .highlight) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("na dziś") {
+                    Text(MovementFormat.minutes(suggestion.minutes))
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(Palette.text2)
+                }
+                VStack(alignment: .leading, spacing: Spacing.tight) {
+                    Text(polish: suggestion.title)
+                        .displayFont(24, weight: .medium, relativeTo: .title2)
                         .foregroundStyle(Palette.text)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(polish: suggestion.detail)
@@ -48,34 +42,18 @@ struct MovementSuggestionCard: View {
                 }
                 MovementVideoTile(video: suggestion.video)
                 if isDone {
-                    HStack(spacing: 10) {
-                        OrganicStar()
-                            .fill(Palette.accent)
-                            .frame(width: 14, height: 14)
-                            .accessibilityHidden(true)
-                        Text(polish: "zapisałam – dziękuję, że znalazłaś dziś chwilę dla siebie")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.text2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(minHeight: 44)
+                    // As tall as the button it replaces, so the card doesn't jump.
+                    ConfirmationNote(text: "zapisałam – dziękuję, że znalazłaś dziś chwilę dla siebie")
+                        .frame(maxWidth: .infinity, minHeight: TapSize.large, alignment: .leading)
                 } else {
-                    HStack(spacing: 4) {
-                        StarButton(label: "zrobione – zapisz: \(suggestion.kind.label), \(suggestion.loggedMinutes) min",
-                                   size: 21,
-                                   prominent: true,
-                                   action: logSuggestion)
-                        Text(polish: "zrobione? Dotknij gwiazdki, a zapiszę: \(suggestion.kind.label) · \(suggestion.loggedMinutes) min")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityHidden(true)
-                    }
+                    StarActionButton("zrobione", action: logSuggestion)
+                        .accessibilityHint(Text(verbatim: "zapiszę: \(suggestion.kind.label), \(MovementFormat.spokenMinutes(suggestion.loggedMinutes))"))
                 }
             }
         }
     }
 
+    /// Logs the shorter end of the suggestion; she can correct it in "Twój ruch".
     private func logSuggestion() {
         withAnimation(.smooth) {
             _ = store.logWorkout(suggestion.kind, minutes: suggestion.loggedMinutes, on: store.today)
@@ -83,139 +61,45 @@ struct MovementSuggestionCard: View {
     }
 }
 
-/// The video for today's suggestion; it opens in YouTube, or in Safari without the app.
+/// The video for today's suggestion as a calm tile; it opens in YouTube, or in Safari without the app.
 struct MovementVideoTile: View {
     let video: MovementVideo
 
     var body: some View {
         if let url = URL(string: video.url) {
+            let shape = RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
             Link(destination: url) {
-                HStack(spacing: 12) {
-                    OrganicStar()
-                        .fill(Palette.accent)
-                        .frame(width: 14, height: 14)
+                HStack(spacing: Spacing.item) {
+                    Image(systemName: "play.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Palette.accent)
+                        .frame(width: 36, height: 36)
+                        .background(Palette.accent.opacity(0.14), in: Circle())
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(video.label)
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.text)
+                        Text(video.title)
+                            .rowTitle()
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("otwórz na YouTube")
-                            .font(.caption)
-                            .foregroundStyle(Palette.muted)
+                        Text(video.source)
+                            .rowDetail()
                     }
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.medium))
+                    Spacer(minLength: Spacing.tight)
+                    Image(systemName: "arrow.up.right")
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(Palette.muted)
                         .accessibilityHidden(true)
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Palette.accentBackground.opacity(0.6))
+                .padding(.horizontal, Spacing.item)
+                .padding(.vertical, Spacing.tight)
+                .frame(maxWidth: .infinity, minHeight: TapSize.large, alignment: .leading)
+                .background(Color.white.opacity(0.04), in: shape)
+                .overlay {
+                    shape.strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
                 }
-                .contentShape(Rectangle())
+                .contentShape(shape)
             }
-            .buttonStyle(.plain)
-            .accessibilityHint("otwiera film na YouTube")
+            .buttonStyle(TilePressStyle())
+            .accessibilityHint(Text("otwiera film na YouTube"))
         }
-    }
-}
-
-/// The offer to move up a stage: asked once she has made movement a habit, raised only on yes.
-struct MovementOfferCard: View {
-    @Environment(AppStore.self) private var store
-    let stage: Int
-
-    var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    OrganicStar()
-                        .fill(Palette.accent)
-                        .frame(width: 12, height: 12)
-                        .accessibilityHidden(true)
-                    Text("chcesz spróbować etapu \(stage)?")
-                        .sectionTitle()
-                }
-                Text(polish: "w ostatnich tygodniach ruszałaś się regularnie – widzę, że obecny etap masz już oswojony. Etap \(stage), \(MovementFormat.stageName(stage)): \(MovementFormat.stageDetail(stage))")
-                    .bodyText()
-                Text(polish: "jeśli wolisz zostać tam, gdzie jesteś, to też dobry wybór – zapytam znowu za jakiś czas")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 24) {
-                    Button("tak, spróbuję") { answer(accepted: true) }
-                        .buttonStyle(LinkButtonStyle())
-                    Button("jeszcze nie") { answer(accepted: false) }
-                        .buttonStyle(LinkButtonStyle())
-                }
-            }
-        }
-    }
-
-    private func answer(accepted: Bool) {
-        withAnimation(.smooth) {
-            _ = store.answerStageOffer(accepted: accepted)
-        }
-    }
-}
-
-/// "Twój etap": where she is in her plan. She can go back a stage at any time; it goes up only
-/// when she says yes to the offer.
-struct MovementStageCard: View {
-    @Environment(AppStore.self) private var store
-
-    var body: some View {
-        let stage = store.data.training.stage
-        let stages = TrainingProgress.stages
-        Card {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Twój etap").sectionTitle()
-                ForEach(stages, id: \.self) { number in
-                    stageRow(number, current: stage)
-                }
-                if stage < stages.upperBound {
-                    Text(polish: "zapytam Cię o kolejny etap, gdy zobaczę, że obecny masz już oswojony. Nigdy nie podniosę poprzeczki bez Twojej zgody")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if stage > stages.lowerBound {
-                    Button {
-                        withAnimation(.smooth) {
-                            _ = store.setTrainingStage(stage - 1)
-                        }
-                    } label: {
-                        Text(verbatim: "wróć do etapu \(stage - 1)")
-                    }
-                    .buttonStyle(LinkButtonStyle())
-                }
-            }
-        }
-    }
-
-    private func stageRow(_ number: Int, current: Int) -> some View {
-        let isCurrent = number == current
-        return HStack(alignment: .top, spacing: 12) {
-            OrganicStar()
-                .fill(isCurrent ? Palette.accent : (number < current ? Palette.accentDim : Palette.line))
-                .frame(width: 14, height: 14)
-                .padding(.top, 2)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: "etap \(number) · \(MovementFormat.stageName(number))")
-                    .font(.subheadline.weight(isCurrent ? .semibold : .regular))
-                    .foregroundStyle(isCurrent ? Palette.text : Palette.text2)
-                Text(polish: MovementFormat.stageDetail(number))
-                    .font(.footnote)
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 }

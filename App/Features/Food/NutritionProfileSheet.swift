@@ -6,10 +6,10 @@ import AboutHerCore
 /// "Twoje cele dzienne": a few facts about her, and the targets computed from them
 /// (or her own numbers, if she prefers). Nothing personal is pre-filled from code.
 ///
-/// The sheet saves itself when it closes (swiped down or "gotowe") and when the app goes to the
-/// background, but only when something changed and what she typed can be used. "anuluj" throws
-/// away what changed after the last save. While a change can't be saved yet, the sheet stays
-/// open and a gentle line names the first field that needs her.
+/// The sheet saves itself when it closes (a swipe down) and when the app goes to the background,
+/// but only when something changed and what she typed can be used. While a change can't be saved
+/// yet, the sheet stays open, a gentle line names the first field that needs her, and "zamknij bez
+/// zmian" at the top leaves everything as it was saved.
 struct NutritionProfileSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -85,42 +85,33 @@ struct NutritionProfileSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                aboutSection
-                if let result = preview {
-                    previewSection(result)
-                }
-                ownTargetsSection
-            }
-            .scrollContentBackground(.hidden)
-            .background(Palette.background)
-            .navigationTitle("Twoje cele dzienne")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("anuluj") {
-                        isCancelled = true
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    // Closing saves (see onDisappear), so "gotowe" only closes.
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "checkmark")
-                    }
-                    .accessibilityLabel("gotowe")
-                    .disabled(isBlocked)
+        FoodSheetPage {
+            ScreenHeader(title: "Twoje cele dzienne", subtitle: "zapisuję sama, gdy zamkniesz")
+            if isBlocked {
+                FoodUnsavedNote {
+                    isCancelled = true
+                    dismiss()
                 }
             }
-            .onAppear(perform: load)
+            aboutCard
+            if let result = preview {
+                resultCard(result)
+            }
+            ToggleTile(title: "wolę wpisać własne cele", isOn: draft.usesOwnTargets) {
+                withAnimation(.snappy(duration: 0.2)) {
+                    draft.usesOwnTargets.toggle()
+                }
+            }
+            if draft.usesOwnTargets {
+                ownTargetsCard
+            }
+            Text(polish: "to szacunek – nie zastąpi rozmowy z lekarzem ani dietetyczką")
+                .hintText()
         }
-        .presentationDetents([.large])
         // A change that can't be saved yet keeps the sheet open, so nothing she typed is lost
-        // by a swipe; "anuluj" still closes it.
+        // by a swipe; "zamknij bez zmian" still closes it.
         .interactiveDismissDisabled(isBlocked)
+        .onAppear(perform: load)
         .onDisappear {
             if !isCancelled {
                 commit()
@@ -138,97 +129,137 @@ struct NutritionProfileSheet: View {
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Cards
 
-    private var aboutSection: some View {
-        Section {
-            numberField("rok urodzenia", text: $draft.birthYear, placeholder: "np. 1995")
-            numberField("wzrost (cm)", text: $draft.height, placeholder: "np. 165")
-            if let trendWeight {
-                // Her weigh-ins decide the weight the targets use; a new one belongs in "waga".
-                LabeledContent {
-                    Text("\(FoodFormat.number(trendWeight)) kg")
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("waga")
-                        Text(polish: "z linii trendu – nowy pomiar dodasz w karcie „waga”")
-                            .font(.caption)
-                            .foregroundStyle(Palette.muted)
+    private var aboutCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("o Tobie")
+                VStack(spacing: Spacing.tight) {
+                    FoodNumberRow("rok urodzenia", text: $draft.birthYear, placeholder: "np. 1995",
+                                  keyboard: .numberPad)
+                    FoodNumberRow("wzrost", text: $draft.height, placeholder: "np. 165", unit: "cm")
+                    if let trendWeight {
+                        // Her weigh-ins decide the weight the targets use; a new one belongs in "waga".
+                        ListRow("waga", detail: "z linii trendu wagi") {
+                            Text(verbatim: "\(FoodFormat.number(trendWeight)) kg")
+                                .valueText()
+                        }
+                    } else {
+                        FoodNumberRow("waga", text: $draft.weight, placeholder: "np. 64,5", unit: "kg")
                     }
                 }
-            } else {
-                numberField("waga (kg)", text: $draft.weight, placeholder: "np. 64,5")
-            }
-            Picker("aktywność", selection: $draft.activity) {
-                ForEach(ActivityLevel.allCases, id: \.self) { level in
-                    Text(level.label).tag(level)
+                choices("ile się ruszasz w zwykłym tygodniu?") {
+                    ChoiceTiles(options: ActivityLevel.allCases,
+                                selection: draft.activity,
+                                columns: 2,
+                                label: { Self.activityTitle($0) },
+                                onSelect: { draft.activity = $0 })
                 }
-            }
-            Picker("tempo", selection: $draft.pace) {
-                ForEach(Pace.allCases) { pace in
-                    Text(pace.label).tag(pace)
+                choices("tempo") {
+                    ChoiceTiles(options: Pace.allCases,
+                                selection: draft.pace,
+                                columns: 1,
+                                label: { $0.label },
+                                onSelect: { draft.pace = $0 })
                 }
-            }
-        } header: {
-            Text("o Tobie")
-                .textCase(nil)
-        } footer: {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(polish: trendWeight == nil
-                     ? "mogę policzyć cele za Ciebie. Gdy zaczniesz się ważyć, sama uwzględnię linię trendu wagi"
-                     : "mogę policzyć cele za Ciebie. Liczę je z linii trendu wagi, więc same nadążają za zmianami")
                 if let profileHint {
                     Text(polish: profileHint)
+                        .font(.footnote)
                         .foregroundStyle(Palette.accent)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
     }
 
-    private func previewSection(_ result: TargetResult) -> some View {
-        Section {
-            LabeledContent("przemiana materii", value: "\(FoodFormat.whole(result.bmr)) kcal")
-            LabeledContent("zapotrzebowanie", value: "\(FoodFormat.whole(result.tdee)) kcal")
-            LabeledContent("cel", value: "\(FoodFormat.whole(result.targets.kcal)) kcal")
-            LabeledContent("białko", value: "\(FoodFormat.whole(result.targets.protein)) g")
-            LabeledContent("węglowodany", value: "\(FoodFormat.whole(result.targets.carbs)) g")
-            LabeledContent("tłuszcz", value: "\(FoodFormat.whole(result.targets.fat)) g")
-        } header: {
-            // With her own numbers on, this is only what the app would suggest.
-            Text(verbatim: draft.usesOwnTargets ? "tak bym to policzyła" : "tak to liczę")
-                .textCase(nil)
-        } footer: {
-            Text(polish: notes(for: result))
-        }
-    }
-
-    private var ownTargetsSection: some View {
-        Section {
-            Toggle("wolę wpisać własne cele", isOn: $draft.usesOwnTargets)
-            if draft.usesOwnTargets {
-                numberField("kcal", text: $draft.ownKcal, placeholder: "kcal")
-                numberField("białko (g)", text: $draft.ownProtein, placeholder: "g")
-                numberField("węglowodany (g)", text: $draft.ownCarbs, placeholder: "g")
-                numberField("tłuszcz (g)", text: $draft.ownFat, placeholder: "g")
-            }
-        } footer: {
-            VStack(alignment: .leading, spacing: 6) {
-                if draft.usesOwnTargets {
-                    ForEach(ownTargetNotes, id: \.self) { note in
-                        Text(polish: note)
-                            .foregroundStyle(Palette.accent)
+    /// What I'd set: the kcal big, the three macros under them, how I count it on tap.
+    private func resultCard(_ result: TargetResult) -> some View {
+        // With her own numbers on, this is only what the app would suggest, so it steps back.
+        Card(style: draft.usesOwnTargets ? CardStyle.quiet : CardStyle.highlight) {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader(draft.usesOwnTargets ? "tak bym to policzyła" : "tak to liczę")
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.tight) {
+                    Text(verbatim: "\(FoodFormat.whole(result.targets.kcal))")
+                        .displayFont(40, relativeTo: .largeTitle)
+                        .foregroundStyle(Palette.text)
+                    Text("kcal dziennie")
+                        .font(.body)
+                        .foregroundStyle(Palette.text2)
+                }
+                .accessibilityElement(children: .combine)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: Spacing.item) {
+                        targetStats(result.targets)
+                    }
+                    VStack(alignment: .leading, spacing: Spacing.item) {
+                        targetStats(result.targets)
                     }
                 }
-                Text(polish: "to szacunek, nie zalecenie medyczne – nie zastępuje rozmowy z lekarzem ani dietetyczką")
+                MoreInfo("jak to liczę?", text: notes(for: result))
             }
         }
     }
 
-    private func numberField(_ label: String, text: Binding<String>, placeholder: String) -> some View {
-        LabeledContent(label) {
-            TextField(placeholder, text: text)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
+    private var ownTargetsCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                VStack(spacing: Spacing.tight) {
+                    FoodNumberRow("kcal", text: $draft.ownKcal, placeholder: "np. 1600", unit: "kcal")
+                    FoodNumberRow("białko", text: $draft.ownProtein, placeholder: "np. 100", unit: "g")
+                    FoodNumberRow("węglowodany", text: $draft.ownCarbs, placeholder: "np. 180", unit: "g")
+                    FoodNumberRow("tłuszcz", text: $draft.ownFat, placeholder: "np. 55", unit: "g")
+                }
+                ForEach(ownTargetNotes, id: \.self) { note in
+                    Text(polish: note)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.accent)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .transition(.opacity)
+    }
+
+    // MARK: - Parts
+
+    /// A group of tiles with its short name above it.
+    private func choices<Tiles: View>(_ title: String, @ViewBuilder tiles: () -> Tiles) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.item) {
+            Text(polish: title)
+                .font(.subheadline)
+                .foregroundStyle(Palette.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            tiles()
+        }
+    }
+
+    @ViewBuilder
+    private func targetStats(_ targets: Macros) -> some View {
+        targetStat("białko", grams: targets.protein)
+        targetStat("węglowodany", grams: targets.carbs)
+        targetStat("tłuszcz", grams: targets.fat)
+    }
+
+    private func targetStat(_ label: String, grams: Double) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(verbatim: "\(FoodFormat.whole(grams)) g")
+                .valueText()
+            Text(label)
+                .rowDetail()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Short words, the same as in the welcome, so each tile keeps to one line two by two; the
+    /// question above them says "w zwykłym tygodniu".
+    private static func activityTitle(_ level: ActivityLevel) -> String {
+        switch level {
+        case .sedentary: "mało ruchu"
+        case .light: "1–3 treningi"
+        case .moderate: "3–5 treningów"
+        case .high: "6–7 treningów"
         }
     }
 
@@ -370,8 +401,13 @@ struct NutritionProfileSheet: View {
         }
     }
 
+    /// "jak to liczę?": the two numbers behind the target, the rules and what I adjusted.
     private func notes(for result: TargetResult) -> String {
-        var lines = [
+        var lines: [String] = [
+            "przemiana materii to ok. \(FoodFormat.whole(result.bmr)) kcal, a zapotrzebowanie ok. \(FoodFormat.whole(result.tdee)) kcal",
+            trendWeight == nil
+                ? "gdy zaczniesz się ważyć, sama uwzględnię linię trendu wagi"
+                : "liczę z linii trendu wagi, więc cele same nadążają za zmianami",
             "przemianę materii liczę wzorem Mifflina–St Jeora",
             "białko to ok. 1,8 g na kilogram – liczę je od Twojej wagi, a najwyżej od wagi, która pasuje do Twojego wzrostu",
             "tłuszcz to co najmniej 25% energii, a resztę zostawiam na węglowodany – w miarę możliwości co najmniej 130 g",

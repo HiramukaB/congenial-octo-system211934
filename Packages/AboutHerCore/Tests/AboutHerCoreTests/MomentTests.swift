@@ -4,8 +4,8 @@ import Testing
 
 @Suite("Chwila dla siebie: meditations, intentions and the question deck")
 struct MomentTests {
-    /// Every mood, and no mood at all.
-    private static let moods: [MoodLevel?] = [nil] + MoodLevel.allCases.map { Optional($0) }
+    /// Every mood of 1–10, and no mood at all.
+    private static let moods: [Int?] = [nil] + (1...10).map { Optional($0) }
 
     /// Pronouns that address her are always capitalised in the app's texts.
     private static let lowercaseAddress: Set<String> = [
@@ -39,13 +39,21 @@ struct MomentTests {
                 #expect(url.host == "www.youtube.com")
             }
         }
-        // Without a mood, the meditation for a "średni" day.
+        // Without a mood, the meditation for a "średni" day (5–6).
         for time in MeditationTime.allCases {
-            #expect(MeditationGuide.meditation(for: time, mood: nil) == MeditationGuide.meditation(for: time, mood: .neutral))
+            #expect(MeditationGuide.meditation(for: time, mood: nil) == MeditationGuide.meditation(for: time, mood: 5))
+            #expect(MeditationGuide.meditation(for: time, mood: 6) == MeditationGuide.meditation(for: time, mood: 5))
         }
         // A hard evening gets something else than a bright one.
-        #expect(MeditationGuide.meditation(for: .evening, mood: .veryLow)
-                != MeditationGuide.meditation(for: .evening, mood: .veryGood))
+        #expect(MeditationGuide.meditation(for: .evening, mood: 1)
+                != MeditationGuide.meditation(for: .evening, mood: 10))
+        // The two values of a band share its meditation.
+        for time in MeditationTime.allCases {
+            for low in stride(from: 1, through: 9, by: 2) {
+                #expect(MeditationGuide.meditation(for: time, mood: low)
+                        == MeditationGuide.meditation(for: time, mood: low + 1))
+            }
+        }
     }
 
     @Test func intentionsSuitHerMoodAndTakeTurns() {
@@ -69,9 +77,14 @@ struct MomentTests {
             // The next day starts with another one.
             #expect(MeditationGuide.intention(for: mood, on: day.adding(days: 1)) == offered[1])
         }
-        // The hardest days are offered only the gentlest ones, the brightest days none of those.
-        #expect(MeditationGuide.intentions(for: .veryLow) == MeditationGuide.gentleIntentions)
-        #expect(Set(MeditationGuide.intentions(for: .veryGood)).isDisjoint(with: MeditationGuide.gentleIntentions))
+        // The hardest days (1–2) are offered only the gentlest ones, the brightest (9–10) none of those.
+        #expect(MeditationGuide.intentions(for: 1) == MeditationGuide.gentleIntentions)
+        #expect(MeditationGuide.intentions(for: 2) == MeditationGuide.gentleIntentions)
+        #expect(Set(MeditationGuide.intentions(for: 9)).isDisjoint(with: MeditationGuide.gentleIntentions))
+        #expect(Set(MeditationGuide.intentions(for: 10)).isDisjoint(with: MeditationGuide.gentleIntentions))
+        // Out of range counts as the nearest end of the scale.
+        #expect(MeditationGuide.intentions(for: 0) == MeditationGuide.intentions(for: 1))
+        #expect(MeditationGuide.intentions(for: 15) == MeditationGuide.intentions(for: 10))
         // Any offset is safe.
         #expect(all.contains(MeditationGuide.intention(for: nil, on: day, offset: -7)))
         #expect(all.contains(MeditationGuide.intention(for: nil, on: day, offset: Int.max)))

@@ -1,70 +1,22 @@
 import SwiftUI
 import AboutHerCore
 
-/// "jak się dziś czujesz?": energy, mood, sleep, appetite and a few symptoms of one day, on "dziś"
-/// and in the calendar's sheet. A tap marks a chip, a second tap takes it back, and every tap is
-/// saved at once – there is nothing to confirm.
+/// "jak się dziś czujesz?" on "dziś": energy, mood, sleep and appetite, each dragged from 1 to 10,
+/// and her symptoms as large tiles behind "objawy". Every change saves itself at once – there is
+/// nothing to confirm. The calendar's sheet shows the same form for any day she has lived.
 struct SymptomsCard: View {
-    @Environment(AppStore.self) private var store
     let day: LocalDate
-    /// Counts the saved taps, for a light haptic on each.
-    @State private var taps = 0
+    /// Whether the symptom tiles are open; they stay as she left them.
+    @AppStorage("symptomsFlagsOpen") private var isFlagsOpen = false
 
     var body: some View {
-        let marked = store.data.symptoms(on: day)
-        let flow = FlowLayout(spacing: 6, lineSpacing: 6)
         Card {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(Self.title(on: day, today: store.today))
-                    .sectionTitle()
-                VStack(alignment: .leading, spacing: 8) {
-                    SymptomRow<EnergyLevel>(
-                        title: "energia", options: EnergyLevel.allCases,
-                        label: { $0.label }, spoken: { "energia \($0.label)" },
-                        isOn: { marked.energy == $0 }
-                    ) { level in
-                        saved(store.toggleSymptom(\.energy, level, on: day))
-                    }
-                    SymptomRow<MoodLevel>(
-                        title: "nastrój", options: MoodLevel.allCases,
-                        label: { $0.label }, spoken: { "nastrój \($0.label)" },
-                        isOn: { marked.mood == $0 }
-                    ) { level in
-                        saved(store.toggleSymptom(\.mood, level, on: day))
-                    }
-                    SymptomRow<SleepQuality>(
-                        title: "sen", options: SleepQuality.allCases,
-                        label: { $0.label }, spoken: { "sen \($0.label)" },
-                        isOn: { marked.sleep == $0 }
-                    ) { quality in
-                        saved(store.toggleSymptom(\.sleep, quality, on: day))
-                    }
-                    SymptomRow<AppetiteLevel>(
-                        title: "apetyt", options: AppetiteLevel.allCases,
-                        label: { $0.label }, spoken: { "apetyt \($0.label)" },
-                        isOn: { marked.appetite == $0 }
-                    ) { level in
-                        saved(store.toggleSymptom(\.appetite, level, on: day))
-                    }
-                }
-                flow {
-                    ForEach(SymptomFlag.allCases, id: \.self) { flag in
-                        SymptomChip(label: flag.label, spoken: flag.label, isOn: marked.flags.contains(flag)) {
-                            saved(store.toggleSymptom(flag, on: day))
-                        }
-                    }
-                }
-                Text(polish: "zapisuję od razu – dotknij jeszcze raz, żeby odznaczyć")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            DaySymptomsForm(day: day, isFlagsOpen: $isFlagsOpen)
         }
-        .sensoryFeedback(.selection, trigger: taps)
     }
 
     /// "jak się dziś czujesz?" for today; the days before in the past tense:
-    /// "jak się czułaś wczoraj?", "jak się czułaś 7 listopada?".
+    /// "jak się czułaś wczoraj?", "jak się czułaś przedwczoraj?", "jak się czułaś 7 listopada?".
     static func title(on day: LocalDate, today: LocalDate) -> String {
         if day == today {
             return "jak się dziś czujesz?"
@@ -72,98 +24,127 @@ struct SymptomsCard: View {
         if day == today.adding(days: -1) {
             return "jak się czułaś wczoraj?"
         }
-        return "jak się czułaś \(PolishDate.dayMonth(day))?"
-    }
-
-    /// A refused tap (her data can't be changed right now) gets the store's alert instead of a haptic.
-    private func saved(_ isSaved: Bool) {
-        if isSaved {
-            taps += 1
+        if day == today.adding(days: -2) {
+            return "jak się czułaś przedwczoraj?"
         }
+        let date = PolishDate.dayMonth(day)
+        return day.year == today.year ? "jak się czułaś \(date)?" : "jak się czułaś \(date) \(day.year)?"
     }
 }
 
-/// One scale: its name, then a chip for each of its values.
-private struct SymptomRow<Option: Hashable>: View {
-    let title: String
-    let options: [Option]
-    let label: (Option) -> String
-    /// What VoiceOver says for a chip, with the scale's name: "energia niska".
-    let spoken: (Option) -> String
-    let isOn: (Option) -> Bool
-    let onTap: (Option) -> Void
-    /// Grows with the text size, so the longest name ("nastrój") keeps fitting.
-    @ScaledMetric(relativeTo: .footnote) private var titleWidth: CGFloat = 58
+/// How she felt on one day: the four scales, then her symptoms. On "dziś" the symptoms wait behind
+/// "objawy" (with what she marked named on the row); in the calendar's sheet they are always open.
+///
+/// The scales are compact rows – the name and the word on the left, the track beside them – so all
+/// four fit in a glance and she can set them one after another without scrolling.
+struct DaySymptomsForm: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let day: LocalDate
+    /// Whether the symptom tiles show; nil keeps them always open.
+    var isFlagsOpen: Binding<Bool>? = nil
 
     var body: some View {
-        let flow = FlowLayout(spacing: 6, lineSpacing: 6)
-        HStack(alignment: .top, spacing: 8) {
-            Text(title)
-                .font(.footnote)
-                .foregroundStyle(Palette.muted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(width: titleWidth, alignment: .leading)
-                // On one line with the words of the first chips.
-                .padding(.top, SymptomChip.verticalPadding)
-                // Every chip says it itself.
-                .accessibilityHidden(true)
-            flow {
-                ForEach(options, id: \.self) { option in
-                    SymptomChip(label: label(option), spoken: spoken(option), isOn: isOn(option)) {
-                        onTap(option)
+        let marked = store.data.symptoms(on: day)
+        let isToday = day == store.today
+        VStack(alignment: .leading, spacing: Spacing.cardGap) {
+            SectionHeader(SymptomsCard.title(on: day, today: store.today))
+            // Compact rows sit closer together; at large text sizes the scales stack and get the
+            // usual room between groups.
+            VStack(alignment: .leading,
+                   spacing: DragScaleLayout.fitsCompactRow(at: dynamicTypeSize) ? Spacing.item : Spacing.group) {
+                ForEach(SymptomScaleKind.allCases, id: \.self) { kind in
+                    DragScale(kind.title, value: marked[keyPath: kind.keyPath], words: kind.words,
+                              layout: .compact) { value in
+                        _ = store.setSymptomScale(kind.keyPath, to: value, on: day)
                     }
+                }
+            }
+            if marked.hasEveryScale {
+                ConfirmationNote(text: isToday ? "zapisałam – dziękuję, że o siebie dbasz" : "zapisałam")
+            }
+            RowDivider()
+            flagsSection(marked)
+        }
+        .animation(.smooth(duration: 0.25), value: marked.hasEveryScale)
+    }
+
+    @ViewBuilder
+    private func flagsSection(_ marked: SymptomDay) -> some View {
+        if let isFlagsOpen {
+            VStack(alignment: .leading, spacing: Spacing.item) {
+                SymptomsFlagsRow(summary: summary(of: marked), isOpen: isFlagsOpen.wrappedValue) {
+                    withAnimation(.smooth(duration: 0.25)) {
+                        isFlagsOpen.wrappedValue = !isFlagsOpen.wrappedValue
+                    }
+                }
+                if isFlagsOpen.wrappedValue {
+                    flagTiles(marked)
+                        .transition(.opacity)
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: Spacing.item) {
+                Text("objawy")
+                    .rowTitle()
+                    .accessibilityAddTraits(.isHeader)
+                flagTiles(marked)
+            }
+        }
+    }
+
+    /// Two tiles to a row; a tap marks a symptom, a second one takes it back.
+    private func flagTiles(_ marked: SymptomDay) -> some View {
+        TileGrid(columns: 2) {
+            ForEach(SymptomFlag.allCases, id: \.self) { flag in
+                ToggleTile(title: flag.label, isOn: marked.flags.contains(flag)) {
+                    _ = store.toggleSymptom(flag, on: day)
                 }
             }
         }
     }
+
+    /// "wzdęcia, skurcze"; nil while nothing is marked.
+    private func summary(of marked: SymptomDay) -> String? {
+        let names = marked.orderedFlags.map(\.label)
+        return names.isEmpty ? nil : names.joined(separator: ", ")
+    }
 }
 
-/// A soft capsule with a small star that lights up when it is marked.
-private struct SymptomChip: View {
-    /// The space above and below the words; the scale names line up with it.
-    static let verticalPadding: CGFloat = 7
-
-    let label: String
-    let spoken: String
-    let isOn: Bool
+/// The row that opens and closes the symptom tiles: "objawy", what she marked, a chevron.
+private struct SymptomsFlagsRow: View {
+    let summary: String?
+    let isOpen: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                OrganicStar()
-                    .fill(isOn ? Palette.accent : Palette.accentDim.opacity(0.35))
-                    .frame(width: 9, height: 9)
-                Text(label)
-                    .font(.footnote)
-                    .foregroundStyle(isOn ? Palette.text : Palette.text2)
+            HStack(spacing: Spacing.item) {
+                Text("objawy")
+                    .rowTitle()
+                Spacer(minLength: Spacing.tight)
+                if let summary {
+                    Text(summary)
+                        .rowDetail()
+                        .lineLimit(1)
+                }
+                Image(systemName: "chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Palette.accent)
+                    .rotationEffect(.degrees(isOpen ? 180 : 0))
+                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, 11)
-            .padding(.vertical, Self.verticalPadding)
-            .background {
-                Capsule().fill(isOn ? Palette.accent.opacity(0.2) : Color.white.opacity(0.05))
-            }
-            .overlay {
-                Capsule().strokeBorder(isOn ? Palette.accent.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 1)
-            }
-        }
-        .buttonStyle(SymptomChipStyle())
-        .animation(.snappy(duration: 0.2), value: isOn)
-        .accessibilityLabel(Text(spoken))
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-    }
-}
-
-/// Gives a little when pressed. The tap area is about 44 pt tall without changing the layout.
-private struct SymptomChipStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.94 : 1)
-            .opacity(configuration.isPressed ? 0.75 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
-            .padding(.vertical, 6)
+            .frame(minHeight: TapSize.minimum)
             .contentShape(Rectangle())
-            .padding(.vertical, -6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("objawy"))
+        .accessibilityValue(Text(spokenValue))
+    }
+
+    /// "wzdęcia, zwinięte" – what is marked, and whether the tiles show.
+    private var spokenValue: String {
+        let marked = summary ?? "nic nie zaznaczono"
+        return "\(marked), \(isOpen ? "rozwinięte" : "zwinięte")"
     }
 }

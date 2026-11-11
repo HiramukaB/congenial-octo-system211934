@@ -13,15 +13,18 @@ extension View {
 
 /// Her wish from the web version: rows are removed by swiping left, not by extra buttons,
 /// and a tap on a row opens it for editing.
+///
+/// The swipe is a `SidewaysDrag`: a drag up or down that starts on the row scrolls the page and
+/// leaves the row alone. While the row is closed only a swipe to the left opens it, so a swipe
+/// to the right stays free for the way back to the screen before.
 struct SwipeToDelete: ViewModifier {
     let label: String
     let onTap: (() -> Void)?
     let delete: () -> Void
 
     @State private var isOpen = false
-    /// The live horizontal drag. It goes back to zero by itself when the drag ends or is
-    /// cancelled, so a row is never left half open.
-    @GestureState(resetTransaction: Transaction(animation: .snappy)) private var dragWidth: CGFloat = 0
+    /// The live sideways drag; back to zero when the finger lifts or the drag is cancelled.
+    @State private var dragWidth: CGFloat = 0
     @State private var deletions = 0
 
     private let revealWidth: CGFloat = 64
@@ -33,10 +36,18 @@ struct SwipeToDelete: ViewModifier {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
                 .offset(x: offset)
+                // The swipe first, so the row follows the finger at once; a tap is what is left
+                // when it doesn't move.
+                .gesture(SidewaysDrag(direction: isOpen ? .either : .leftOnly,
+                                      onChanged: { _, translation in
+                                          dragWidth = translation.width
+                                      },
+                                      onEnded: { translation, velocity in
+                                          settle(translation.width, velocity: velocity.width)
+                                      }))
                 .onTapGesture {
                     tap()
                 }
-                .simultaneousGesture(drag)
                 // A background gets the row's full height and doesn't move with the row.
                 .background(alignment: .trailing) {
                     bin(width: -offset)
@@ -68,21 +79,15 @@ struct SwipeToDelete: ViewModifier {
         return min(0, max(-revealWidth * 1.5, start + dragWidth))
     }
 
-    private var drag: some Gesture {
-        DragGesture(minimumDistance: 14)
-            .updating($dragWidth) { value, width, _ in
-                // Only horizontal drags move the row; vertical ones belong to the scroll view.
-                if abs(value.translation.width) > abs(value.translation.height) * 1.5 {
-                    width = value.translation.width
-                }
-            }
-            .onEnded { value in
-                guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
-                let start: CGFloat = isOpen ? -revealWidth : 0
-                withAnimation(.snappy) {
-                    isOpen = start + value.translation.width < -revealWidth / 2
-                }
-            }
+    /// The finger lifted: the row opens when it was pulled – or flicked – past half the bin, and
+    /// closes otherwise.
+    private func settle(_ width: CGFloat, velocity: CGFloat) {
+        let start: CGFloat = isOpen ? -revealWidth : 0
+        let flick = velocity.isFinite ? velocity * 0.1 : 0
+        withAnimation(.snappy) {
+            isOpen = start + width + flick < -revealWidth / 2
+            dragWidth = 0
+        }
     }
 
     /// The bin: as wide as the row has moved (so it never shows through the row), the row's full
@@ -95,7 +100,8 @@ struct SwipeToDelete: ViewModifier {
                 .font(.body)
                 .foregroundStyle(Palette.text)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Palette.red.opacity(0.35), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                // Warm and quiet: removing is a choice she makes, not an alarm.
+                .background(Palette.removeBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

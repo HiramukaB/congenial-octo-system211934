@@ -1,102 +1,43 @@
 import SwiftUI
 import AboutHerCore
 
-/// "Twój ruch": this week as a count of days with movement – never a streak to keep – and what she
-/// logged, today first. "dopisz ruch" opens a field for any activity; a tap on an entry opens it
-/// in the same field to correct it, a swipe left deletes it. The field saves itself when the
-/// keyboard goes, when the app goes to the background and when she leaves the tab.
+/// "Twój ruch": this week at a glance – a star for every day she moved, a weekly count and never a
+/// streak to keep – then "dopisz ruch" and what she logged in the last seven days, newest first.
+/// A tap on an entry opens it in place, a swipe left deletes it. The editor saves every change at
+/// once, so closing it never loses anything.
 struct WorkoutLogCard: View {
     @Environment(AppStore.self) private var store
-    @Environment(\.scenePhase) private var scenePhase
+    /// What the editor is open for; nil while it is closed.
+    @State private var editing: WorkoutEditing? = nil
 
-    /// What the open field writes; nil while it is closed.
-    @State private var editing: Editing? = nil
-    @State private var minutesDraft = ""
-    /// The last minutes she typed couldn't be saved.
-    @State private var wasRejected = false
-    @FocusState private var isFocused: Bool
-
-    /// A new entry, or a logged one she tapped, and the day it belongs to.
-    struct Editing {
-        /// nil for a new entry.
-        var workoutID: UUID?
-        var day: LocalDate
-        var kind: WorkoutKind
-    }
+    /// How many days the list goes back, today included.
+    private static let listedDays = 7
 
     var body: some View {
         let today = store.today
         let week = store.movementWeek
-        // This week's days up to today, today first.
-        let pastDays = Swift.max(0, week.monday.days(to: today))
-        let days = (0...pastDays).map { today.adding(days: -$0) }
+        // A new entry is edited above the list, so it isn't listed twice.
+        let newEntryID: UUID? = editing?.isNew == true ? editing?.id : nil
+        let entries = store.data.recentWorkouts(through: today, days: Self.listedDays)
+            .filter { $0.workout.id != newEntryID }
         Card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Twój ruch").sectionTitle()
-                    Spacer()
-                    if editing == nil {
-                        StarButton(label: "dopisz ruch", prominent: true, action: startNew)
-                    }
-                }
+            VStack(alignment: .leading, spacing: Spacing.cardGap) {
+                SectionHeader("Twój ruch", subtitle: weekLine(week))
                 MovementWeekStrip(monday: week.monday, today: today, activeDays: week.activeDays)
-                Text(weekLine(week))
-                    .font(.footnote)
-                    .foregroundStyle(Palette.text2)
-                if let editing {
-                    // One and the same field for a new entry and a tapped one, so the keyboard
-                    // stays up from entry to entry.
-                    editor(editing)
+                if let editing, editing.isNew {
+                    WorkoutEditor(editing: editing, onClose: close)
+                } else {
+                    StarActionButton("dopisz ruch", size: .regular, action: startNew)
                 }
-                if wasRejected {
-                    Text(polish: "tego nie zapiszę – wpisz liczbę minut od 1 do 600, np. 30")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.accent)
+                if !entries.isEmpty {
+                    list(entries)
+                    MoreInfo("jak liczę kcal?", text: kcalNote)
                 }
-                ForEach(days, id: \.self) { day in
-                    // The entry in the field isn't listed twice.
-                    let entries = store.data.workouts(on: day).filter { $0.id != editing?.workoutID }
-                    if !entries.isEmpty {
-                        Text(MovementFormat.dayTitle(day, today: today))
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Palette.muted)
-                            .padding(.top, 2)
-                        ForEach(entries) { workout in
-                            row(workout, on: day)
-                        }
-                    }
-                }
-                if week.workoutCount == 0 && editing == nil {
-                    Button(action: startNew) {
-                        Text(polish: "tu pojawi się Twój ruch – dotknij, żeby dopisać spacer, jogę albo cokolwiek innego")
-                            .bodyText()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        // A light tap when she picks another kind; opening and closing the field have the star's own.
-        .sensoryFeedback(.selection, trigger: editing?.kind) { oldKind, newKind in
-            oldKind != nil && newKind != nil
-        }
-        .onChange(of: isFocused) { _, focused in
-            // The keyboard went away (dragged down, another tab): she is done.
-            if !focused {
-                save()
-            }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            // In the background the app may be ended at any time: save the field and the file now.
-            if phase == .background && editing != nil {
-                save()
-                store.saveNow()
             }
         }
         .onDisappear {
-            // Another tab took over before the field lost focus.
-            save()
+            // Everything is saved already; she comes back to a calm card.
+            editing = nil
         }
     }
 
@@ -105,167 +46,73 @@ struct WorkoutLogCard: View {
     /// "w tym tygodniu: 3 dni z ruchem · 95 min"
     private func weekLine(_ week: MovementWeek) -> String {
         guard week.workoutCount > 0 else {
-            return "w tym tygodniu: jeszcze nic – każdy ruch się liczy, nawet krótki spacer"
+            return "w tym tygodniu jeszcze nic – każdy ruch się liczy"
         }
         return "w tym tygodniu: \(PolishPlural.days(week.activeDays.count)) z ruchem · \(week.minutes) min"
     }
 
-    private func row(_ workout: Workout, on day: LocalDate) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("\(workout.kind.label) · \(workout.minutes) min")
-                .font(.subheadline)
-                .foregroundStyle(Palette.text)
-            Spacer()
-            Text(MovementFormat.kcal(store.movementKcal(workout.kind, minutes: workout.minutes)))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(Palette.muted)
-        }
-        .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .swipeToDelete(label: "usuń ruch", onTap: { edit(workout, on: day) }) {
-            store.removeWorkout(workout.id, on: day)
-        }
-    }
-
-    private func editor(_ editing: Editing) -> some View {
-        let flow = FlowLayout(spacing: 6, lineSpacing: 6)
-        let typedMinutes = Int(minutesDraft.trimmingCharacters(in: .whitespaces))
-        return VStack(alignment: .leading, spacing: 10) {
-            Text(polish: hint(for: editing))
-                .font(.caption)
-                .foregroundStyle(Palette.muted)
-                .fixedSize(horizontal: false, vertical: true)
-            flow {
-                ForEach(WorkoutKind.allCases, id: \.self) { kind in
-                    kindChip(kind, isSelected: kind == editing.kind)
+    private func list(_ entries: [DatedWorkout]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(entries) { entry in
+                if let editing, editing.id == entry.workout.id, editing.day == entry.day {
+                    // The entry she tapped opens right where it was.
+                    WorkoutEditor(editing: editing, onClose: close)
+                        .padding(.vertical, Spacing.item)
+                } else {
+                    row(entry)
                 }
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                TextField("np. 30", text: $minutesDraft)
-                    .keyboardType(.numbersAndPunctuation)
-                    .submitLabel(.done)
-                    .focused($isFocused)
-                    .onSubmit { save() }
-                    .font(.title3.monospacedDigit())
-                    .foregroundStyle(Palette.text)
-                    .frame(maxWidth: 90)
-                    .accessibilityLabel("minuty")
-                    .accessibilityIdentifier("workout-minutes")
-                    // In case the focus asked for together with showing the field didn't take.
-                    .onAppear { isFocused = true }
-                Text("min")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.muted)
-                Spacer()
-                if let typedMinutes, Workout.minuteRange.contains(typedMinutes) {
-                    Text(MovementFormat.kcal(store.movementKcal(editing.kind, minutes: typedMinutes)))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(Palette.muted)
+                if entry.id != entries.last?.id {
+                    RowDivider()
                 }
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Palette.accentBackground.opacity(0.6))
+    }
+
+    /// "spacer" · "dziś · ok. 114 kcal" · "30 min"
+    private func row(_ entry: DatedWorkout) -> some View {
+        let workout = entry.workout
+        let day = MovementFormat.recentDay(entry.day, today: store.today)
+        let kcal = MovementFormat.kcal(store.movementKcal(workout.kind, minutes: workout.minutes))
+        return ListRow(workout.kind.label, detail: "\(day) · \(kcal)") {
+            Text(verbatim: "\(workout.minutes) min")
+                .valueText()
         }
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
+        .swipeToDelete(label: "usuń ruch", onTap: { edit(entry) }) {
+            remove(entry)
         }
     }
 
-    /// One kind to choose; the chosen one carries a star.
-    private func kindChip(_ kind: WorkoutKind, isSelected: Bool) -> some View {
-        Button {
-            self.editing?.kind = kind
-        } label: {
-            HStack(spacing: 5) {
-                if isSelected {
-                    OrganicStar()
-                        .fill(Palette.accent)
-                        .frame(width: 9, height: 9)
-                }
-                Text(kind.label)
-                    .font(.footnote.weight(isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? Palette.accent : Palette.text2)
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 34)
-            .background {
-                Capsule()
-                    .fill(isSelected ? Palette.accent.opacity(0.16) : Color.clear)
-            }
-            .overlay {
-                Capsule()
-                    .strokeBorder(isSelected ? Palette.accent.opacity(0.4) : Palette.line, lineWidth: 1)
-            }
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    private func hint(for editing: Editing) -> String {
-        // The return key shows a word or a checkmark, so the hint speaks of the keyboard.
-        guard editing.workoutID != nil else {
-            return "co i ile minut? Zapiszę to, gdy schowasz klawiaturę"
-        }
-        let day = editing.day == store.today ? "" : " z \(PolishDate.dayMonth(editing.day))"
-        return "poprawiasz wpis\(day) – zapiszę zmianę, gdy schowasz klawiaturę"
+    private var kcalNote: String {
+        store.isMovementWeightAssumed
+            ? "to szacunek z rodzaju ruchu i czasu, liczony dla 65 kg, dopóki nie zapiszesz swojej wagi w zakładce jedzenie"
+            : "to szacunek z rodzaju ruchu, czasu i Twojej wagi – nie dokładny pomiar"
     }
 
     // MARK: - Editing
 
     private func startNew() {
-        guard editing == nil else { return }
-        wasRejected = false
-        editing = Editing(workoutID: nil, day: store.today, kind: .walk)
-        minutesDraft = ""
-        isFocused = true
-    }
-
-    /// A tap on a logged entry opens it in the field. What the field held is saved first.
-    private func edit(_ workout: Workout, on day: LocalDate) {
-        if editing != nil {
-            save()
-        } else {
-            wasRejected = false
-        }
-        editing = Editing(workoutID: workout.id, day: day, kind: workout.kind)
-        minutesDraft = String(workout.minutes)
-        isFocused = true
-    }
-
-    /// Saves the field to its own day and closes it. An empty field changes nothing – an entry
-    /// is deleted with a swipe.
-    private func save() {
-        guard let target = editing else { return }
-        let text = minutesDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        closeField()
-        guard !text.isEmpty else { return }
-        guard let minutes = Int(text), Workout.minuteRange.contains(minutes) else {
-            // Only minutes that can't be saved get this line. When the store refuses for another
-            // reason (read-only data), it shows its own alert.
-            wasRejected = true
-            return
-        }
-        wasRejected = false
-        if let id = target.workoutID, store.data.workouts(on: target.day).contains(where: { $0.id == id }) {
-            store.updateWorkout(id, kind: target.kind, minutes: minutes, on: target.day)
-        } else {
-            // A new entry, or one that isn't there any more: her minutes are kept as a new entry.
-            // The date can move back (a time zone to the west): it then goes to the day it is now.
-            store.logWorkout(target.kind, minutes: minutes, on: Swift.min(target.day, store.today))
+        withAnimation(.smooth) {
+            editing = WorkoutEditing(id: UUID(), day: store.today, isNew: true)
         }
     }
 
-    private func closeField() {
-        editing = nil
-        isFocused = false
-        minutesDraft = ""
+    /// A tap on an entry opens it in place. Nothing in an open editor needs saving first.
+    private func edit(_ entry: DatedWorkout) {
+        withAnimation(.smooth) {
+            editing = WorkoutEditing(id: entry.workout.id, day: entry.day, isNew: false)
+        }
+    }
+
+    private func close() {
+        withAnimation(.smooth) {
+            editing = nil
+        }
+    }
+
+    private func remove(_ entry: DatedWorkout) {
+        withAnimation(.snappy(duration: 0.2)) {
+            store.removeWorkout(entry.workout.id, on: entry.day)
+        }
     }
 }
 
@@ -279,19 +126,34 @@ struct MovementWeekStrip: View {
         HStack(spacing: 0) {
             ForEach(0..<7, id: \.self) { offset in
                 let day = monday.adding(days: offset)
-                VStack(spacing: 5) {
-                    OrganicStar()
-                        .fill(activeDays.contains(day) ? Palette.accent : Palette.line)
-                        .frame(width: 16, height: 16)
+                let isActive = activeDays.contains(day)
+                let isToday = day == today
+                VStack(spacing: Spacing.tight) {
+                    ZStack {
+                        OrganicStar()
+                            .fill(isActive ? Palette.accent : Color.clear)
+                        OrganicStar()
+                            .stroke(isActive ? Palette.accent : Palette.accentDim.opacity(0.45), lineWidth: 1.2)
+                    }
+                    .frame(width: 22, height: 22)
                     Text(PolishDate.weekdayInitials[offset])
-                        .font(.caption2.weight(day == today ? .semibold : .regular))
-                        .foregroundStyle(day == today ? Palette.accent : Palette.muted)
+                        .font(.footnote.weight(isToday ? .semibold : .regular))
+                        .foregroundStyle(isToday ? Palette.accent : Palette.muted)
                 }
                 .frame(maxWidth: .infinity)
                 .opacity(day > today ? 0.45 : 1)
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: "dni z ruchem w tym tygodniu: \(activeDays.count)"))
+        .accessibilityLabel(Text(spokenWeek))
+    }
+
+    /// "dni z ruchem w tym tygodniu: poniedziałek, środa"
+    private var spokenWeek: String {
+        let names = (0..<7).compactMap { offset -> String? in
+            activeDays.contains(monday.adding(days: offset)) ? MovementFormat.weekdays[offset] : nil
+        }
+        guard !names.isEmpty else { return "w tym tygodniu jeszcze bez ruchu" }
+        return "dni z ruchem w tym tygodniu: \(names.joined(separator: ", "))"
     }
 }

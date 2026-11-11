@@ -7,7 +7,12 @@ struct MovementTests {
     /// A Tuesday; every day and workout here is made up.
     private let today = LocalDate(year: 2026, month: 11, day: 10)
     private let phases: [CyclePhase?] = [nil, .menstrual, .follicular, .ovulatory, .luteal]
-    private let energies: [EnergyLevel?] = [nil, .low, .medium, .high]
+    /// No energy marked, and every value of the 1–10 scale.
+    private let energies: [Int?] = [nil] + (1...10).map { Optional($0) }
+    /// 1–3 is a low day, 8–10 a high one, 4–7 an ordinary one.
+    private let lowEnergies = [1, 2, 3]
+    private let highEnergies = [8, 9, 10]
+    private let ordinaryEnergies: [Int?] = [nil, 4, 5, 6, 7]
 
     private func isClose(_ value: Double, _ expected: Double) -> Bool {
         abs(value - expected) < 1e-9
@@ -39,15 +44,17 @@ struct MovementTests {
     }
 
     @Test func theSecondStageBringsBodyweightTrainingButNotOnHardDays() {
-        let period = WorkoutPlanner.suggestion(stage: 2, phase: .menstrual, energy: .high)
+        let period = WorkoutPlanner.suggestion(stage: 2, phase: .menstrual, energy: 9)
         #expect(period.focus == .gentle)
         #expect(period.kind == .yoga)
         #expect(period.minutes == 15...15)
         #expect(period.video == .gentleYoga)
-        #expect(WorkoutPlanner.suggestion(stage: 2, phase: .ovulatory, energy: .low).focus == .gentle)
+        for energy in lowEnergies {
+            #expect(WorkoutPlanner.suggestion(stage: 2, phase: .ovulatory, energy: energy).focus == .gentle)
+        }
 
         let otherPhases: [CyclePhase?] = [nil, .follicular, .ovulatory, .luteal]
-        let otherEnergies: [EnergyLevel?] = [nil, .medium, .high]
+        let otherEnergies = ordinaryEnergies + highEnergies.map { Optional($0) }
         for phase in otherPhases {
             for energy in otherEnergies {
                 let suggestion = WorkoutPlanner.suggestion(stage: 2, phase: phase, energy: energy)
@@ -62,27 +69,32 @@ struct MovementTests {
 
     @Test func inTheThirdStageHerEnergyWinsOverTheCalendar() {
         for phase in phases {
-            let low = WorkoutPlanner.suggestion(stage: 3, phase: phase, energy: .low)
-            #expect(low.focus == .lowEnergy)
-            #expect(low.kind == .yoga)
-            #expect(low.minutes == 15...15)
-            #expect(low.video == .gentleYoga)
-
-            let high = WorkoutPlanner.suggestion(stage: 3, phase: phase, energy: .high)
-            #expect(high.focus == .highEnergy)
-            #expect(high.minutes == 20...30)
+            for energy in lowEnergies {
+                let low = WorkoutPlanner.suggestion(stage: 3, phase: phase, energy: energy)
+                #expect(low.focus == .lowEnergy)
+                #expect(low.kind == .yoga)
+                #expect(low.minutes == 15...15)
+                #expect(low.video == .gentleYoga)
+            }
+            for energy in highEnergies {
+                let high = WorkoutPlanner.suggestion(stage: 3, phase: phase, energy: energy)
+                #expect(high.focus == .highEnergy)
+                #expect(high.minutes == 20...30)
+            }
         }
-        let rising = WorkoutPlanner.suggestion(stage: 3, phase: .follicular, energy: .high)
+        let rising = WorkoutPlanner.suggestion(stage: 3, phase: .follicular, energy: 8)
         #expect(rising.kind == .intervals)
         #expect(rising.video == .intervals)
-        let period = WorkoutPlanner.suggestion(stage: 3, phase: .menstrual, energy: .high)
+        let period = WorkoutPlanner.suggestion(stage: 3, phase: .menstrual, energy: 10)
         #expect(period.kind == .strength)
         #expect(period.video == .bodyweight)
+        // Out of range counts as the nearest end of the scale.
+        #expect(WorkoutPlanner.suggestion(stage: 3, phase: .luteal, energy: 0).focus == .lowEnergy)
+        #expect(WorkoutPlanner.suggestion(stage: 3, phase: .luteal, energy: 25).focus == .highEnergy)
     }
 
     @Test func inTheThirdStageAnOrdinaryDayFollowsThePhase() {
-        let ordinary: [EnergyLevel?] = [nil, .medium]
-        for energy in ordinary {
+        for energy in ordinaryEnergies {
             let period = WorkoutPlanner.suggestion(stage: 3, phase: .menstrual, energy: energy)
             #expect(period.focus == .recovery)
             #expect(period.kind == .yoga)
@@ -110,7 +122,7 @@ struct MovementTests {
 
     @Test func aStageOutsideTheRangeIsClamped() {
         #expect(WorkoutPlanner.suggestion(stage: 0, phase: .luteal, energy: nil).focus == .habit)
-        #expect(WorkoutPlanner.suggestion(stage: -4, phase: nil, energy: .high).stage == 1)
+        #expect(WorkoutPlanner.suggestion(stage: -4, phase: nil, energy: 9).stage == 1)
         #expect(WorkoutPlanner.suggestion(stage: 9, phase: .luteal, energy: nil).focus == .moderate)
         #expect(WorkoutPlanner.suggestion(stage: Int.max, phase: nil, energy: nil).stage == 3)
     }

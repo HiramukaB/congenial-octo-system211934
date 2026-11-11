@@ -28,6 +28,9 @@ targets:
     platform: iOS
     sources:
       - path: App
+        # Notes for developers (App/DesignSystem/DESIGN.md) stay out of the app bundle.
+        excludes:
+          - "**/*.md"
     dependencies:
       - package: AboutHerCore
     settings:

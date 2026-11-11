@@ -330,15 +330,15 @@ struct DataTests {
         #expect(appData.userFoods.first?.tags == [NutrientTag.protein, .calcium])
 
         // Written back, every key and value is still there; only the version is the current one,
-        // and the fields added in schema 3 are written next to them.
+        // and the fields added in schemas 3 and 4 are written next to them.
         let written = try AppDataCoding.encode(appData)
         let original = try JSONDecoder().decode(JSONValue.self, from: raw)
         let rewritten = try JSONDecoder().decode(JSONValue.self, from: written)
-        let addedInSchema3 = ["symptoms", "intentions", "wins", "manifest", "reflections", "letters", "photos",
-                              "moments", "workouts", "training", "settings"]
-        #expect(rewritten.removing(addedInSchema3)
+        let addedLater = ["symptoms", "intentions", "wins", "manifest", "reflections", "letters", "photos",
+                          "moments", "workouts", "training", "settings", "humor"]
+        #expect(rewritten.removing(addedLater)
                 == original.setting("schemaVersion", to: .number(Double(AppData.currentSchemaVersion))))
-        #expect(addedInSchema3.allSatisfy { rewritten.hasKey($0) })
+        #expect(addedLater.allSatisfy { rewritten.hasKey($0) })
         var current = appData
         current.schemaVersion = AppData.currentSchemaVersion
         #expect(try AppDataCoding.decode(written) == current)
